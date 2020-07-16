@@ -18,17 +18,17 @@ def load_model(model, ckpt_file, main_gpu, use_cuda: bool=True):
     if use_cuda:
         checkpoint = torch.load(ckpt_file, map_location=lambda storage, loc: storage.cuda(main_gpu))
         try:
-            model.load_state_dict(checkpoint['model'])
+            model.load_state_dict(checkpoint)
         except:
-            model.module.load_state_dict(checkpoint['model'])
+            model.module.load_state_dict(checkpoint)
     else:
         checkpoint = torch.load(ckpt_file, map_location=lambda storage, loc: storage)
         try:
-            model.load_state_dict(checkpoint['model'])
+            model.load_state_dict(checkpoint)
         except:
             # create new OrderedDict that does not contain `module.`
             new_state_dict = OrderedDict()
-            for k, v in checkpoint['model'].items():
+            for k, v in checkpoint.items():
                 if k[:7] == 'module.':
                     name = k[7:] # remove `module.`
                 else:

@@ -89,12 +89,7 @@ def main(args):
             print('==> Loading Checkpoint \'{}\''.format(args.ckpt))
             checkpoint = load_model(model, ckpt_file,
                                     main_gpu=args.gpuids[0], use_cuda=args.cuda)
-            epoch = checkpoint['epoch']
-            # logging at sacred
-            ex.log_scalar('best_epoch', epoch)
-
-            print('==> Loaded Checkpoint \'{}\' (epoch {})'.format(
-                args.ckpt, epoch))
+            print('==> Loaded Checkpoint \'{}\''.format(args.ckpt))
 
             # evaluate on validation set
             print('\n===> [ Evaluation ]')
