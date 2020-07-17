@@ -111,14 +111,10 @@ def main(args):
     # for fine-tuning
     if args.finetune:
         if isfile(ckpt_file):
-            print('==> Loading Checkpoint \'{}\''.format(opt.ckpt))
+            print('==> Loading Checkpoint \'{}\''.format(args.ckpt))
             checkpoint = load_model(model, ckpt_file,
-                                    main_gpu=opt.gpuids[0], use_cuda=opt.cuda)
-            
-            '''~~~~~여기 추가코드~~~~~'''
-
-            print('==> Loaded Checkpoint \'{}\' (epoch {})'.format(
-                opt.ckpt, checkpoint['epoch']))
+                                    main_gpu=args.gpuids[0], use_cuda=args.cuda)
+            print('==> Loaded Checkpoint \'{}\''.format(args.ckpt))
         else:
             print('==> no checkpoint found \'{}\''.format(
                 opt.ckpt))
