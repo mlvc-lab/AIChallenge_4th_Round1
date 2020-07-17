@@ -10,6 +10,7 @@ Specially, you can train or test on any device (CPU/sinlge GPU/multi GPU) and di
 - `python 3.5+`
 - `pytorch 1.4+`
 - `torchvision 0.4+`
+- `tqdm` (for downloading pretrained chekpoints)
 - `sacred` (for logging on omniboard)
 - `pymongo` (for logging on omniboard)
 
@@ -19,6 +20,7 @@ Specially, you can train or test on any device (CPU/sinlge GPU/multi GPU) and di
 
 - `config.py`: set configuration
 - `data.py`: data loading
+- `down_ckpt.py`: download pretrained checkpoints
 - `main.py`: main python file for training or testing
 - `models`
   - `__init__.py`
@@ -29,14 +31,59 @@ Specially, you can train or test on any device (CPU/sinlge GPU/multi GPU) and di
 
 ----------
 
+## How to download a pretrained Model
+
+The pretrained models of ResNet56 trained on CIFAR100 is only available now...
+
+```text
+usage: down_ckpt.py [-h] [-a ARCH] [--layers N] [--width-mult WM] [-o OUT]
+                    DATA
+
+positional arguments:
+  DATA                  dataset: cifar10 | cifar100 | imagenet (default:
+                        cifar10)
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -a ARCH, --arch ARCH  model architecture: mobilenet | mobilenetv2 | resnet
+                        (default: mobilenet)
+  --layers N            number of layers in VGG/ResNet/WideResNet (default:
+                        56)
+  --width-mult WM       width multiplier to thin a network uniformly at each
+                        layer (default: 1.0)
+  -o OUT, --out OUT     output filename of pretrained model from our google
+                        drive
+```
+
+### Usage
+
+```shell
+python down_ckpt.py cifar100 -a resnet --layers 56 -o pretrained_ckpt.pth
+```
+
+### ResNet56/CIFAR100 pretrained checkpoint experiment detail
+
+- #epochs: 200
+- batch size: 256
+- initial learning rate: 0.1
+- SGD
+- momentum: 0.9
+- weight decay: 5e-4
+- no nesterov
+- multi-step scheduler
+  - gamma: 0.1
+  - milestones: [100, 150]
+
+----------
+
 ## How to train / test networks
 
-``` text
+```text
 usage: main.py [-h] [-a ARCH] [--layers N] [--width-mult WM] [--datapath PATH]
                [-j N] [--epochs N] [-b N] [--lr LR] [--momentum M]
                [--wd WEIGHT_DECAY] [--nest] [--sched TYPE] [--step-size STEP]
                [--milestones EPOCH [EPOCH ...]] [--gamma GAMMA] [-p N]
-               [--ckpt PATH] [-E] [-C] [-g GPU [GPU ...]]
+               [--ckpt PATH] [-E] [-C] [-g GPU [GPU ...]] [-F]
                DATA
 
 positional arguments:
@@ -75,37 +122,38 @@ optional arguments:
   --gamma GAMMA         multiplicative factor of learning rate decay (default:
                         0.1)
   -p N, --print-freq N  print frequency (default: 100)
-  --ckpt PATH           Path of checkpoint for testing model (default: none)
-  -E, --evaluate        Test model?
-  -C, --cuda            Use cuda?
+  --ckpt PATH           path of checkpoint for testing model (default: none)
+  -E, --evaluate        test model?
+  -C, --cuda            use cuda?
   -g GPU [GPU ...], --gpuids GPU [GPU ...]
                         GPU IDs for using (default: 0)
+  -F, -finetune         finetuning?
 ```
 
 ### Training
 
 #### Train a network using default scheduler (stepLR) with multi-GPU
 
-``` shell
-$ python main.py cifar10 -a resnet --layers 56 -C -g 0 1 2 3
+```shell
+python main.py cifar10 -a resnet --layers 56 -C -g 0 1 2 3
 ```
 
 or
 
 ``` shell
-$ python main.py cifar10 -a mobilenet -C -g 0 1 2 3
+python main.py cifar10 -a mobilenet -C -g 0 1 2 3
 ```
 
 #### Train a network using multi-step scheduler with multi-GPU
 
-``` shell
-$ python main.py cifar10 -a resnet --layers 56 -C -g 0 1 2 3 --scheduler multistep --milestones 50 100 150 --gamma 0.1
+```shell
+python main.py cifar10 -a resnet --layers 56 -C -g 0 1 2 3 --scheduler multistep --milestones 100 150 --gamma 0.1
 ```
 
 ### Test
 
-``` shell
-$ python main.py cifar10 -a resnet --layers 56 -C -g 0 1 2 3 -E --ckpt ckpt_best.pth
+```shell
+python main.py cifar10 -a resnet --layers 56 -C -g 0 1 2 3 -E --ckpt ckpt_best.pth
 ```
 
 ----------

@@ -82,13 +82,16 @@ def config():
     parser.add_argument('-p', '--print-freq', default=100, type=int,
                         metavar='N', help='print frequency (default: 100)')
     parser.add_argument('--ckpt', default='', type=str, metavar='PATH',
-                        help='Path of checkpoint for testing model (default: none)')
+                        help='path of checkpoint for testing model (default: none)')
     parser.add_argument('-E', '--evaluate', dest='evaluate', action='store_true',
-                        help='Test model?')
+                        help='test model?')
     parser.add_argument('-C', '--cuda', dest='cuda', action='store_true',
-                        help='Use cuda?')
+                        help='use cuda?')
     parser.add_argument('-g', '--gpuids', metavar='GPU', default=[0],
                         type=int, nargs='+',
                         help='GPU IDs for using (default: 0)')
+    # for finetuning
+    parser.add_argument('-F', '-finetune', dest='finetune', action='store_true',
+                        help='finetuning?')
     cfg = parser.parse_args()
     return cfg

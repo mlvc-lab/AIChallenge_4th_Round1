@@ -107,6 +107,22 @@ def main(args):
             print('==> no checkpoint found \'{}\''.format(
                 args.ckpt))
             exit()
+    
+    # for fine-tuning
+    if args.finetune:
+        if isfile(ckpt_file):
+            print('==> Loading Checkpoint \'{}\''.format(opt.ckpt))
+            checkpoint = load_model(model, ckpt_file,
+                                    main_gpu=opt.gpuids[0], use_cuda=opt.cuda)
+            
+            '''~~~~~여기 추가코드~~~~~'''
+
+            print('==> Loaded Checkpoint \'{}\' (epoch {})'.format(
+                opt.ckpt, checkpoint['epoch']))
+        else:
+            print('==> no checkpoint found \'{}\''.format(
+                opt.ckpt))
+            exit()
 
     # train...
     best_acc1 = 0.0
