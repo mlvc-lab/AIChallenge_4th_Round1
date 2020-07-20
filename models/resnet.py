@@ -331,3 +331,12 @@ def resnet(data='cifar10', **kwargs):
             return None
     else:
         return None
+
+
+
+
+
+
+
+
+

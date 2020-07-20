@@ -187,7 +187,7 @@ def main(args):
 
 
 def train(args, train_loader, **kwargs):
-    r"""Train model each epoch
+    """Train model each epoch
     """
     epoch = kwargs.get('epoch')
     model = kwargs.get('model')
