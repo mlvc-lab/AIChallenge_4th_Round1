@@ -216,7 +216,7 @@ def things_unzip_and_convert(source, target):
 
     if target.exists():
         rm_tree(target)
-        target.mkdir()
+    target.mkdir()
 
     for zipname in source.glob("*.zip"):
         with ZipFile(zipname) as z:

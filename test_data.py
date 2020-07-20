@@ -61,9 +61,9 @@ class DataTest(TestCase):
             self._rm_tree(root)
 
     def tearDown(self):
-        # for path in [self.source, self.target, self.temp]:
-        #     if Path(path).exists():
-        #         self._rm_tree(path)
+        for path in [self.source, self.target, self.temp]:
+            if Path(path).exists():
+                self._rm_tree(path)
         pass
 
     def _rm_tree(self, pth):
@@ -90,6 +90,9 @@ class DataTest(TestCase):
         self.assertEqual(len(t_loader.dataset) + len(v_loader.dataset), 450)
         self.assertEqual(len(t_loader.dataset), 385)
         self.assertEqual(len(v_loader.dataset), 65)
+
+        for imgs, labels in t_loader:
+            pass
 
     def test_zip(self):
         data.things_unzip_and_convert(self.source, self.target)
