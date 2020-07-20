@@ -2,7 +2,9 @@ from pathlib import Path
 from unittest import TestCase
 from zipfile import ZipFile
 
-import data 
+from PIL import Image
+
+import data
 
 
 class DataTest(TestCase):
@@ -51,7 +53,7 @@ class DataTest(TestCase):
                 sub_dir.mkdir()
                 for image in range(50):
                     img = sub_dir / (f'HF02000{num}{sub}_' + str(image) + '.JPG')
-                    img.touch()
+                    Image.new('RGB', (480, 360), color='green').save(img)
 
                     # add to zip
                     zip_file.write(img)

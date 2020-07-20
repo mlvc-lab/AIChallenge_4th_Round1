@@ -1,10 +1,11 @@
 import os
 from pathlib import Path
 from zipfile import ZipFile
+
+from PIL import Image
 import torch.utils.data
 import torchvision.transforms as transforms
-from torchvision.datasets import CIFAR10, CIFAR100, ImageNet, ImageFolder
-
+from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder, ImageNet
 
 valid_datasets = [
     'cifar10', 'cifar100', 'imagenet', 'things'
@@ -242,7 +243,11 @@ def things_unzip_and_convert(source, target):
                     split = 'val'
                 else:
                     split = 'train'
-                files.replace(Path(target)/split/label/(files.stem + '.jpg'))
+                # resize
+                img = Image.open(files)
+                img.resize((480, 360))
+                img.save(Path(target)/split/label/(files.stem + '.jpg'))
+                # files.replace(Path(target)/split/label/(files.stem + '.jpg'))
                 i+=1
 
     rm_tree(temp)
