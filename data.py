@@ -1,10 +1,13 @@
+import os
+from pathlib import Path
+from zipfile import ZipFile
 import torch.utils.data
 import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10, CIFAR100, ImageNet, ImageFolder
 
 
 valid_datasets = [
-    'cifar10', 'cifar100', 'imagenet'
+    'cifar10', 'cifar100', 'imagenet', 'things'
 ]
 
 
@@ -154,7 +157,8 @@ def imagenet_loader(batch_size, num_workers, datapath, cuda):
 
 def things_loader(batch_size, num_workers, datapath, cuda, split_ratio=0.7):
     transform = transforms.Compose([
-        transforms.RandomResizedCrop(224),
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         # normalize,
@@ -191,6 +195,49 @@ def things_loader(batch_size, num_workers, datapath, cuda, split_ratio=0.7):
             num_workers=num_workers, pin_memory=False)
 
     return train_loader, val_loader
+
+
+def things_unzip_and_convert(source, target):
+    """
+    Unzip Data.zip and convert to ImageFolder loadable datset 
+    """
+    source = Path(source)
+    temp = Path('/tmp/things')
+    target = Path(target)
+
+    if not target.exists():
+        target.mkdir()
+
+    for zipname in source.glob("*.zip"):
+        with ZipFile(zipname) as z:
+            z.extractall(temp)
+    
+    for dirs in temp.iterdir():
+        for obj_dir in dirs.iterdir():
+            label = str(obj_dir).split('_')[-3]
+            
+            # check and make label dir
+            label_dir = Path(target) / label
+            if not label_dir.exists():
+                label_dir.mkdir()
+            
+            for files in obj_dir.glob("*.JPG"):
+                files.replace(label_dir/files.name)
+    
+    def _rm_tree(pth):
+        pth = Path(pth)
+        for child in pth.glob('*'):
+            if child.is_file():
+                child.unlink()
+            else:
+                _rm_tree(child)
+        pth.rmdir()
+
+    _rm_tree(temp)
+
+
+def transform_dataset(source, target):
+    pass
 
 
 def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', cuda=True):
