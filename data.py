@@ -155,25 +155,23 @@ def imagenet_loader(batch_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
-def things_loader(batch_size, num_workers, datapath, cuda, split_ratio=0.7):
+def things_loader(batch_size, num_workers, datapath, cuda):
     transform = transforms.Compose([
-        transforms.Resize(256),
+        transforms.RandomResizedCrop (256),
         transforms.CenterCrop(224),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         # normalize,
     ])
-    # transform_val = transforms.Compose([
-    #     transforms.Resize(256),
-    #     transforms.CenterCrop(224),
-    #     transforms.ToTensor(),
-    #     normalize,
-    # ])
+    transform_val = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        # normalize,
+    ])
 
-    dataset = ImageFolder(datapath, transform=transform)
-    index = int(len(dataset) * split_ratio)
-    trainset = torch.utils.data.Subset(dataset, indices=range(index))
-    valset = torch.utils.data.Subset(dataset, indices=range(index, len(dataset)))
+    trainset = ImageFolder(str(Path(datapath) / 'train'), transform=transform)
+    valset = ImageFolder(str(Path(datapath) / 'val'), transform=transform_val)
 
     if cuda:
         train_loader = torch.utils.data.DataLoader(
@@ -197,6 +195,16 @@ def things_loader(batch_size, num_workers, datapath, cuda, split_ratio=0.7):
     return train_loader, val_loader
 
 
+def rm_tree(pth):
+    pth = Path(pth)
+    for child in pth.glob('*'):
+        if child.is_file():
+            child.unlink()
+        else:
+            rm_tree(child)
+    pth.rmdir()
+
+
 def things_unzip_and_convert(source, target):
     """
     Unzip Data.zip and convert to ImageFolder loadable datset 
@@ -205,35 +213,39 @@ def things_unzip_and_convert(source, target):
     temp = Path('/tmp/things')
     target = Path(target)
 
-    if not target.exists():
+    if target.exists():
+        rm_tree(target)
         target.mkdir()
 
     for zipname in source.glob("*.zip"):
         with ZipFile(zipname) as z:
             z.extractall(temp)
     
+    (Path(target) / 'train').mkdir()
+    (Path(target) / 'val').mkdir()
+
+    i = 0
     for dirs in temp.iterdir():
         for obj_dir in dirs.iterdir():
             label = str(obj_dir).split('_')[-3]
             
             # check and make label dir
-            label_dir = Path(target) / label
+            label_dir = Path(target) / 'train' / label
+            if not label_dir.exists():
+                label_dir.mkdir()
+            label_dir = Path(target) / 'val' / label
             if not label_dir.exists():
                 label_dir.mkdir()
             
             for files in obj_dir.glob("*.JPG"):
-                files.replace(label_dir/files.name)
-    
-    def _rm_tree(pth):
-        pth = Path(pth)
-        for child in pth.glob('*'):
-            if child.is_file():
-                child.unlink()
-            else:
-                _rm_tree(child)
-        pth.rmdir()
+                if i % 7 == 0:
+                    split = 'val'
+                else:
+                    split = 'train'
+                files.replace(Path(target)/split/label/(files.stem + '.jpg'))
+                i+=1
 
-    _rm_tree(temp)
+    rm_tree(temp)
 
 
 def transform_dataset(source, target):

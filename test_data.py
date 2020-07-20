@@ -47,10 +47,10 @@ class DataTest(TestCase):
             root.mkdir()
 
             for sub in range(3):
-                sub = root / (f'HF02000{num}{sub}_' + names[num])
-                sub.mkdir()
-                for image in range(5):
-                    img = sub / (str(image) + '.JPG')
+                sub_dir = root / (f'HF02000{num}{sub}_' + names[num])
+                sub_dir.mkdir()
+                for image in range(50):
+                    img = sub_dir / (f'HF02000{num}{sub}_' + str(image) + '.JPG')
                     img.touch()
 
                     # add to zip
@@ -59,9 +59,10 @@ class DataTest(TestCase):
             self._rm_tree(root)
 
     def tearDown(self):
-        for path in [self.source, self.target, self.temp]:
-            if Path(path).exists():
-                self._rm_tree(path)
+        # for path in [self.source, self.target, self.temp]:
+        #     if Path(path).exists():
+        #         self._rm_tree(path)
+        pass
 
     def _rm_tree(self, pth):
         pth = Path(pth)
@@ -74,15 +75,19 @@ class DataTest(TestCase):
 
     def test_things_dataloader(self):
         self.test_zip()
-        t_lodaer, v_loader = data.DataLoader(
+        t_loader, v_loader = data.DataLoader(
             512,
             1,
             dataset="things",
             datapath=self.target,
             cuda=False
         )
-        self.assertTrue(t_lodaer)
+        self.assertTrue(t_loader)
         self.assertTrue(v_loader)
+
+        self.assertEqual(len(t_loader.dataset) + len(v_loader.dataset), 450)
+        self.assertEqual(len(t_loader.dataset), 385)
+        self.assertEqual(len(v_loader.dataset), 65)
 
     def test_zip(self):
         data.things_unzip_and_convert(self.source, self.target)
