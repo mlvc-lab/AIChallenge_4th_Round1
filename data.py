@@ -1,6 +1,6 @@
 import torch.utils.data
 import torchvision.transforms as transforms
-from torchvision.datasets import CIFAR10, CIFAR100, ImageNet
+from torchvision.datasets import CIFAR10, CIFAR100, ImageNet, ImageFolder
 
 
 valid_datasets = [
@@ -152,6 +152,47 @@ def imagenet_loader(batch_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
+def things_loader(batch_size, num_workers, datapath, cuda, split_ratio=0.7):
+    transform = transforms.Compose([
+        transforms.RandomResizedCrop(224),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        # normalize,
+    ])
+    # transform_val = transforms.Compose([
+    #     transforms.Resize(256),
+    #     transforms.CenterCrop(224),
+    #     transforms.ToTensor(),
+    #     normalize,
+    # ])
+
+    dataset = ImageFolder(datapath, transform=transform)
+    index = int(len(dataset) * split_ratio)
+    trainset = torch.utils.data.Subset(dataset, indices=range(index))
+    valset = torch.utils.data.Subset(dataset, indices=range(index, len(dataset)))
+
+    if cuda:
+        train_loader = torch.utils.data.DataLoader(
+            trainset,
+            batch_size=batch_size, shuffle=True,
+            num_workers=num_workers, pin_memory=True)
+        val_loader = torch.utils.data.DataLoader(
+            valset,
+            batch_size=batch_size, shuffle=False,
+            num_workers=num_workers, pin_memory=True)
+    else:
+        train_loader = torch.utils.data.DataLoader(
+            trainset,
+            batch_size=batch_size, shuffle=True,
+            num_workers=num_workers, pin_memory=False)
+        val_loader = torch.utils.data.DataLoader(
+            valset,
+            batch_size=batch_size, shuffle=False,
+            num_workers=num_workers, pin_memory=False)
+
+    return train_loader, val_loader
+
+
 def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', cuda=True):
     r"""Dataloader for training/validation
     """
@@ -162,3 +203,5 @@ def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', c
         return cifar100_loader(batch_size, num_workers, datapath, cuda)
     elif DataSet == 'imagenet':
         return imagenet_loader(batch_size, num_workers, datapath, cuda)
+    elif DataSet == 'things':
+        return things_loader(batch_size, num_workers, datapath, cuda)
