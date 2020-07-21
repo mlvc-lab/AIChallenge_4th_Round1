@@ -28,7 +28,8 @@ class QBasicBlock(nn.Module):
         super(QBasicBlock, self).__init__()
         self.conv1 = Qconv3x3(inplanes, planes, stride)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.relu = QReLU(inplace=True)
+        self.relu1 = QReLU(inplace=True)
+        self.relu2 = QReLU(inplace=True)
         self.conv2 = Qconv3x3(planes, planes)
         self.bn2 = nn.BatchNorm2d(planes)
         self.downsample = downsample
@@ -39,7 +40,7 @@ class QBasicBlock(nn.Module):
 
         out = self.conv1(x)
         out = self.bn1(out)
-        out = self.relu(out)
+        out = self.relu1(out)
 
         out = self.conv2(out)
         out = self.bn2(out)
@@ -48,7 +49,7 @@ class QBasicBlock(nn.Module):
             residual = self.downsample(x)
 
         out += residual
-        out = self.relu(out)
+        out = self.relu2(out)
 
         return out
 
@@ -64,7 +65,9 @@ class QBottleneck(nn.Module):
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = QConv2d(planes, planes*4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(planes*4)
-        self.relu = QReLU(inplace=True)
+        self.relu1 = QReLU(inplace=True)
+        self.relu2 = QReLU(inplace=True)
+        self.relu3 = QReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
 
@@ -73,11 +76,11 @@ class QBottleneck(nn.Module):
 
         out = self.conv1(x)
         out = self.bn1(out)
-        out = self.relu(out)
+        out = self.relu1(out)
 
         out = self.conv2(out)
         out = self.bn2(out)
-        out = self.relu(out)
+        out = self.relu2(out)
 
         out = self.conv3(out)
         out = self.bn3(out)
@@ -86,7 +89,7 @@ class QBottleneck(nn.Module):
             residual = self.downsample(x)
 
         out += residual
-        out = self.relu(out)
+        out = self.relu3(out)
 
         return out
 

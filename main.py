@@ -44,6 +44,7 @@ def main(args):
     # set model name
     arch_name = set_arch_name(args)
 
+
     print('\n=> creating model \'{}\''.format(arch_name))
     model = models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
                                        width_mult=args.width_mult)

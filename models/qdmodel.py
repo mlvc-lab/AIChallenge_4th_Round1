@@ -6,6 +6,7 @@ import numpy as np
 import time
 from collections import OrderedDict
 import math
+from torch.nn.parameter import Parameter
 
 np.random.seed(0)
 
@@ -13,6 +14,87 @@ np.random.seed(0)
 def conv3x3(in_planes, out_planes, stride=1):
     " 3x3 convolution with padding "
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
+
+
+def Qconv3x3(in_planes, out_planes, stride=1):
+    " 3x3 convolution with padding "
+    return QConv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
+
+
+class QBasicBlock(nn.Module):
+    expansion=1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(QBasicBlock, self).__init__()
+        self.conv1 = Qconv3x3(inplanes, planes, stride)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.relu = QReLU(inplace=True)
+        self.conv2 = Qconv3x3(planes, planes)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+
+class QBottleneck(nn.Module):
+    expansion=4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(QBottleneck, self).__init__()
+        self.conv1 = QConv2d(inplanes, planes, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = QConv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.conv3 = QConv2d(planes, planes*4, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(planes*4)
+        self.relu = QReLU(inplace=True)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = self.relu(out)
+
+        return out
+
+
+
+
+
+
 
 
 class BasicBlock(nn.Module):
@@ -206,6 +288,84 @@ class ResNet_Cifar(nn.Module):
             return x
 
 
+
+class QResNet_Cifar(nn.Module):
+    def __init__(self, block, layers, num_classes=0):
+        super(QResNet_Cifar, self).__init__()
+        self.inplanes = 16
+        self.conv1 = QConv2d(3, 16, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(16)
+        self.relu = QReLU(inplace=True)
+        self.layer1 = self._make_layer(block, 16, layers[0])
+        self.layer2 = self._make_layer(block, 32, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 64, layers[2], stride=2)
+        self.avgpool = nn.AvgPool2d(8, stride=1)
+        self.fc = QLinear(64 * block.expansion, num_classes)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                QConv2d(self.inplanes, planes * block.expansion, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(planes * block.expansion)
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for _ in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def get_bn_before_relu(self):
+        if isinstance(self.layer1[0], QBottleneck):
+            bn1 = self.layer1[-1].bn3
+            bn2 = self.layer2[-1].bn3
+            bn3 = self.layer3[-1].bn3
+        elif isinstance(self.layer1[0], QBasicBlock):
+            bn1 = self.layer1[-1].bn2
+            bn2 = self.layer2[-1].bn2
+            bn3 = self.layer3[-1].bn2
+        else:
+            print('ResNet_Cifar unknown block error !!!')
+
+        return [bn1, bn2, bn3]
+
+    def forward(self, x, type='', pos_list=[]):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+
+        if type in ['AT', 'SP']:
+            x1 = self.layer1(x)
+            x2 = self.layer2(x1)
+            x3 = self.layer3(x2)
+
+            x = self.avgpool(x3)
+            x = x.view(x.size(0), -1)
+            x = self.fc(x)
+
+            return x, [x1, x2, x3]
+        else:
+            x = self.layer1(x)
+            x = self.layer2(x)
+            x = self.layer3(x)
+
+            x = self.avgpool(x)
+            x = x.view(x.size(0), -1)
+            x = self.fc(x)
+
+            return x
+
 class ConvReg(nn.Module):
     """Convolutional regression for FitNet"""
     def __init__(self, s_shape, t_shape, use_relu=True):
@@ -279,6 +439,75 @@ class ResNet(nn.Module):
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
                 nn.Conv2d(self.inplanes, planes * block.expansion, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(planes * block.expansion)
+            )
+
+        layers = []
+        layers.append(block(self.inplanes, planes, stride, downsample))
+        self.inplanes = planes * block.expansion
+        for _ in range(1, blocks):
+            layers.append(block(self.inplanes, planes))
+
+        return nn.Sequential(*layers)
+
+    def forward(self, x, type='', ens=0):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
+        if type in ['AT', 'SP', 'FN', 'OD']:
+            x1 = self.layer1(x)
+            x2 = self.layer2(x1)
+            x3 = self.layer3(x2)
+            x4 = self.layer4(x3)
+
+            x = self.avgpool(x4)
+            x = x.view(x.size(0), -1)
+            x = self.fc(x)
+
+            return x, [x1, x2, x3, x4]
+        else:
+            x = self.layer1(x)
+            x = self.layer2(x)
+            x = self.layer3(x)
+            x = self.layer4(x)
+
+            x = self.avgpool(x)
+            x = x.view(x.size(0), -1)
+            x = self.fc(x)
+
+            return x
+
+
+class QResNet(nn.Module):
+    def __init__(self, block, layers, num_classes=0):
+        super(QResNet, self).__init__()
+        self.inplanes = 64
+        self.conv1 = QConv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(self.inplanes)
+        self.relu = QReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = QLinear(512 * block.expansion, num_classes)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    def _make_layer(self, block, planes, blocks, stride=1):
+        downsample = None
+        if stride != 1 or self.inplanes != planes * block.expansion:
+            downsample = nn.Sequential(
+                QConv2d(self.inplanes, planes * block.expansion, kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm2d(planes * block.expansion)
             )
 
@@ -741,3 +970,166 @@ class MobileNet(nn.Module):
             x = x.view(-1, 1024)
             x = self.fc(x)
             return x
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class Quantizer(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, s, q_n, q_p):
+        x_n = x / s
+        x_q = x_n.clamp(q_n, q_p).round() * s
+        
+        ctx.save_for_backward(x_n)
+        ctx.other = q_n, q_p
+        return x_q
+
+    @staticmethod
+    def backward(ctx, grad_x):
+        x_n = ctx.saved_tensors[0]
+        q_n, q_p = ctx.other
+        
+        gs = math.sqrt(x_n.numel() * q_p)
+        
+        idx_s = (x_n <= q_n).float()
+        idx_l = (x_n >= q_p).float()
+        idx_m = torch.ones(size=idx_s.shape, device=idx_s.device) - idx_s - idx_l
+        
+        grad_s = ((idx_s * q_n + idx_l * q_p + idx_m * (-x_n + x_n.round())) * grad_x / gs).sum().unsqueeze(dim=0)
+        grad_x = idx_m * grad_x
+        return grad_x, grad_s, None, None
+
+
+class QConv2d(nn.Conv2d):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
+                 padding=0, dilation=1, groups=1, bias=True, padding_mode='zeros',
+                 nbits=8):
+        super(QConv2d, self).__init__(in_channels, out_channels, kernel_size, stride,
+                                     padding, dilation, groups, bias, padding_mode)
+        
+        assert nbits > 0 and nbits < 33
+        self.nbits = nbits
+        if nbits != 32:
+            self.step = Parameter(torch.Tensor(1))
+            self.register_buffer('init_state', torch.zeros(1))
+        else:
+            self.register_parameter('step', None)
+
+    @property
+    def step_abs(self):
+        return self.step.abs()
+    
+    def initialize_step(self):
+        self.step.data.copy_(
+            2. * self.weight.abs().mean() / math.sqrt(2 ** (self.nbits - 1) - 1)
+        )
+        self.init_state.fill_(1)
+    
+    def forward(self, input):
+        if self.nbits == 32:
+            weight = self.weight
+        else:
+            if self.training and self.init_state == 0:
+                self.initialize_step()
+
+            q_n = -1. * 2. ** (self.nbits - 1)
+            q_p = 2. ** (self.nbits - 1) - 1
+            
+            weight = Quantizer.apply(self.weight, self.step_abs, q_n, q_p)
+        return super(QConv2d, self)._conv_forward(input, weight)
+
+    def extra_repr(self):
+        s_prefix = super(QConv2d, self).extra_repr()
+        return '{}, nbits={}'.format(s_prefix, self.nbits)
+
+
+class QReLU(nn.ReLU):
+    def __init__(self, inplace=False, nbits=8):
+        super(QReLU, self).__init__(inplace)
+
+        assert nbits > 0 and nbits < 33
+        self.nbits = nbits
+        if nbits != 32:
+            self.step = Parameter(torch.Tensor(1))
+            self.register_buffer('init_state', torch.zeros(1))
+        else:
+            self.register_parameter('step', None)
+
+    @property
+    def step_abs(self):
+        return self.step.abs()
+    
+    def initialize_step(self, input):
+        self.step.data.copy_(
+            2. * input.abs().mean() / math.sqrt(2 ** self.nbits - 1)
+        )
+        self.init_state.fill_(1)
+
+    def forward(self, input):
+        if self.nbits == 32:
+            return super(QReLU, self).forward (input)
+        else:
+            if self.training and self.init_state == 0:
+                self.initialize_step(input)
+
+            q_n = 0.
+            q_p = 2. ** self.nbits - 1
+
+            output = Quantizer.apply(input, self.step_abs, q_n, q_p)
+            return output
+
+    def extra_repr(self):
+        s_prefix = super(QReLU, self).extra_repr()
+        return '{}, nbits={}'.format(s_prefix, self.nbits)
+
+
+class QLinear(nn.Linear):
+    def __init__(self, in_features, out_features, bias=True, nbits=8):
+        super(QLinear, self).__init__(in_features, out_features, bias)
+
+        assert nbits > 0 and nbits < 33
+        self.nbits = nbits
+        if nbits != 32:
+            self.step = Parameter(torch.Tensor(1))
+            self.register_buffer('init_state', torch.zeros(1))
+        else:
+            self.register_parameter('step', None)
+
+    @property
+    def step_abs(self):
+        return self.step.abs()
+
+    def initialize_step(self):
+        self.step.data.copy_(
+            2. * self.weight.abs().mean() / math.sqrt(2 ** (self.nbits - 1) - 1)
+        )
+        self.init_state.fill_(1)
+
+    def forward(self, input):
+        if self.nbits == 32:
+            weight = self.weight
+            bias = self.bias
+        else:
+            if self.training and self.init_state == 0:
+                self.initialize_step()
+
+            q_n = -1. * 2. ** (self.nbits - 1)
+            q_p = 2. ** (self.nbits - 1) - 1
+
+            weight = Quantizer.apply(self.weight, self.step_abs, q_n, q_p)
+            bias = self.bias
+        return F.linear(input, weight, bias)
+
+    def extra_repr(self):
+        s_prefix = super(QLinear, self).extra_repr()
+        return '{}, nbits={}'.format(s_prefix, self.nbits)
