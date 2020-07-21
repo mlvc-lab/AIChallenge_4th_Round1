@@ -117,7 +117,7 @@ def main(args):
             print('==> Loaded Checkpoint \'{}\''.format(args.ckpt))
         else:
             print('==> no checkpoint found \'{}\''.format(
-                opt.ckpt))
+                args.ckpt))
             exit()
 
     # train...
