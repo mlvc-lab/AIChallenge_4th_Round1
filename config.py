@@ -90,6 +90,15 @@ def config():
     parser.add_argument('-g', '--gpuids', metavar='GPU', default=[0],
                         type=int, nargs='+',
                         help='GPU IDs for using (default: 0)')
+    #pruning
+    parser.add_argument('--prune', dest='prune', action='store_true',
+                         help='Use pruning')
+    parser.add_argument('--prune-type', dest='prune_type', default='unstructured',
+                         type=str, help='unstructured / structured')
+    parser.add_argument('--prune-freq', dest='prune_freq', default=16, type=int,
+                         help='update frequency')
+    parser.add_argument('--prune-rate', dest='prune_rate', default=0.5, type=float,
+                         help='pruning rate') 
     # for finetuning
     parser.add_argument('-F', '-finetune', dest='finetune', action='store_true',
                         help='finetuning?')
