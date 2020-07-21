@@ -21,8 +21,8 @@ schedule_types = [
 ]
 
 # sacred setting
-MONGO_URI = 'mongodb://mlvc:mlvcdatabase!@mlvc.khu.ac.kr:31912'
-MONGO_DB = 'training'
+MONGO_URI = 'mongodb://ai:aichallenge!@mlvc.khu.ac.kr:31912/aichallenge'
+MONGO_DB = 'aichallenge'
 
 
 def config():
