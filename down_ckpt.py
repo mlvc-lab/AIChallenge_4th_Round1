@@ -57,7 +57,7 @@ if __name__ == '__main__':
                              ' | '.join(model_names) +
                              ' (default: mobilenet)')
     parser.add_argument('--layers', default=56, type=int, metavar='N',
-                        help='number of layers in VGG/ResNet/WideResNet (default: 56)')
+                        help='number of layers in ResNet (default: 56)')
     parser.add_argument('--width-mult', default=1.0, type=float, metavar='WM',
                         help='width multiplier to thin a network '
                              'uniformly at each layer (default: 1.0)')
