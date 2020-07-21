@@ -6,6 +6,7 @@ from PIL import Image
 import torch.utils.data
 import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder, ImageNet
+from tqdm import tqdm
 
 valid_datasets = [
     'cifar10', 'cifar100', 'imagenet', 'things'
@@ -213,48 +214,49 @@ def things_unzip_and_convert(source, target):
     source = Path(source)
     temp = Path('/tmp/things')
     target = Path(target)
+    train_path = target / 'train'
+    val_path = target / 'val'
 
-    if target.exists():
-        rm_tree(target)
-    target.mkdir()
+    # if target.exists():
+    #     rm_tree(target)
+    if not target.exists():
+        target.mkdir()
+    if not train_path.exists():
+        train_path.mkdir()
+    if not val_path.exists():
+        val_path.mkdir()
 
     for zipname in source.glob("*.zip"):
+        print(f"zipfile: {zipname}")
         with ZipFile(zipname) as z:
-            z.extractall(temp)
-    
-    (Path(target) / 'train').mkdir()
-    (Path(target) / 'val').mkdir()
-
-    i = 0
-    for dirs in temp.iterdir():
-        for obj_dir in dirs.iterdir():
-            label = str(obj_dir).split('_')[-3]
-            
-            # check and make label dir
-            label_dir = Path(target) / 'train' / label
-            if not label_dir.exists():
-                label_dir.mkdir()
-            label_dir = Path(target) / 'val' / label
-            if not label_dir.exists():
-                label_dir.mkdir()
-            
-            for files in obj_dir.glob("*.JPG"):
-                if i % 7 == 0:
-                    split = 'val'
-                else:
+            for i, fname in tqdm(enumerate(z.namelist())):
+                if i % 50 == 0:
                     split = 'train'
-                # resize
-                img = Image.open(files)
-                img.resize((480, 360))
-                img.save(Path(target)/split/label/(files.stem + '.jpg'))
-                # files.replace(Path(target)/split/label/(files.stem + '.jpg'))
-                i+=1
+                    if i % 300 == 0:
+                        split = 'val'
 
+                    label = str(Path(fname).parent.name).split('_')[-3]
+            
+                    # check and make label dir
+                    label_dir = train_path / label
+                    if not label_dir.exists():
+                        label_dir.mkdir()
+                    label_dir = val_path / label
+                    if not label_dir.exists():
+                        label_dir.mkdir()
+
+                    # extract file
+                    z.extract(fname, temp)
+
+                    # resize
+                    img = Image.open(temp/fname)
+                    img.resize((480, 360))
+                    img.save(Path(target)/split/label/(Path(fname).stem + '.jpg'))
+
+                    # delete file
+                    (temp / fname).unlink()
+    
     rm_tree(temp)
-
-
-def transform_dataset(source, target):
-    pass
 
 
 def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', cuda=True):
@@ -269,3 +271,7 @@ def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', c
         return imagenet_loader(batch_size, num_workers, datapath, cuda)
     elif DataSet == 'things':
         return things_loader(batch_size, num_workers, datapath, cuda)
+
+
+if __name__ == "__main__":
+    things_unzip_and_convert('/home/kairos/Downloads/source', '/home/kairos/Downloads/target')

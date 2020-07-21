@@ -51,7 +51,7 @@ class DataTest(TestCase):
             for sub in range(3):
                 sub_dir = root / (f'HF02000{num}{sub}_' + names[num])
                 sub_dir.mkdir()
-                for image in range(50):
+                for image in range(300):
                     img = sub_dir / (f'HF02000{num}{sub}_' + str(image) + '.JPG')
                     Image.new('RGB', (480, 360), color='green').save(img)
 
