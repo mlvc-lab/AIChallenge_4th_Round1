@@ -1,10 +1,15 @@
+import os
+from pathlib import Path
+from zipfile import ZipFile
+
+from PIL import Image
 import torch.utils.data
 import torchvision.transforms as transforms
-from torchvision.datasets import CIFAR10, CIFAR100, ImageNet
-
+from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder, ImageNet
+from tqdm import tqdm
 
 valid_datasets = [
-    'cifar10', 'cifar100', 'imagenet'
+    'cifar10', 'cifar100', 'imagenet', 'things'
 ]
 
 
@@ -152,6 +157,115 @@ def imagenet_loader(batch_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
+def things_loader(batch_size, num_workers, datapath, cuda):
+    transform = transforms.Compose([
+        transforms.RandomResizedCrop (256),
+        transforms.CenterCrop(224),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        # normalize,
+    ])
+    transform_val = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        # normalize,
+    ])
+
+    trainset = ImageFolder(str(Path(datapath) / 'train'), transform=transform)
+    valset = ImageFolder(str(Path(datapath) / 'val'), transform=transform_val)
+
+    if cuda:
+        train_loader = torch.utils.data.DataLoader(
+            trainset,
+            batch_size=batch_size, shuffle=True,
+            num_workers=num_workers, pin_memory=True)
+        val_loader = torch.utils.data.DataLoader(
+            valset,
+            batch_size=batch_size, shuffle=False,
+            num_workers=num_workers, pin_memory=True)
+    else:
+        train_loader = torch.utils.data.DataLoader(
+            trainset,
+            batch_size=batch_size, shuffle=True,
+            num_workers=num_workers, pin_memory=False)
+        val_loader = torch.utils.data.DataLoader(
+            valset,
+            batch_size=batch_size, shuffle=False,
+            num_workers=num_workers, pin_memory=False)
+
+    return train_loader, val_loader
+
+
+def rm_tree(pth):
+    pth = Path(pth)
+    for child in pth.glob('*'):
+        if child.is_file():
+            child.unlink()
+        else:
+            rm_tree(child)
+    pth.rmdir()
+
+
+def things_unzip_and_convert(source, target):
+    """
+    Unzip Data.zip and convert to ImageFolder loadable datset 
+    """
+    source = Path(source)
+    temp = Path('/tmp/things')
+    target = Path(target)
+    train_path = target / 'train'
+    val_path = target / 'val'
+
+    # if target.exists():
+    #     rm_tree(target)
+    if not target.exists():
+        target.mkdir()
+    if not train_path.exists():
+        train_path.mkdir()
+    if not val_path.exists():
+        val_path.mkdir()
+
+    for zipname in source.glob("*.zip"):
+        print(f"zipfile: {zipname}")
+        with ZipFile(zipname) as z:
+            i = 0
+            for fname in tqdm(z.namelist()):
+                # print(Path(fname), Path(fname).suffix)
+
+                if Path(fname).suffix != '.JPG':
+                    continue
+
+                if i % 50 == 0:
+                    split = 'train'
+                    if i % 300 == 0:
+                        split = 'val'
+
+                    label = str(Path(fname).parent.name).split('_')[-3]
+            
+                    # check and make label dir
+                    label_dir = train_path / label
+                    if not label_dir.exists():
+                        label_dir.mkdir()
+                    label_dir = val_path / label
+                    if not label_dir.exists():
+                        label_dir.mkdir()
+
+                    # extract file
+                    z.extract(fname, temp)
+
+                    # resize
+                    img = Image.open(temp/fname)
+                    img.resize((480, 360))
+                    img.save(Path(target)/split/label/(Path(fname).stem + '.jpg'))
+
+                    # delete file
+                    (temp / fname).unlink()
+
+                i+=1
+    rm_tree(temp)
+
+
 def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', cuda=True):
     r"""Dataloader for training/validation
     """
@@ -162,3 +276,9 @@ def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', c
         return cifar100_loader(batch_size, num_workers, datapath, cuda)
     elif DataSet == 'imagenet':
         return imagenet_loader(batch_size, num_workers, datapath, cuda)
+    elif DataSet == 'things':
+        return things_loader(batch_size, num_workers, datapath, cuda)
+
+
+if __name__ == "__main__":
+    things_unzip_and_convert('/media/kairos/KM_SDRnHDR/AI-Challenge_dataset', '/home/kairos/Downloads/target')
