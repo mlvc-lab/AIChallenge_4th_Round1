@@ -3,7 +3,7 @@ import pathlib
 import argparse
 from os.path import isfile
 
-import DeepCABAC
+import deepCABAC
 
 import torch
 import torch.nn as nn
@@ -159,7 +159,7 @@ def main(args):
         exit()
 
     # set encoder
-    encoder = DeepCABAC.Encoder()
+    encoder = deepCABAC.Encoder()
 
     interv = 0.1
     stepsize = 15
