@@ -229,7 +229,13 @@ def things_unzip_and_convert(source, target):
     for zipname in source.glob("*.zip"):
         print(f"zipfile: {zipname}")
         with ZipFile(zipname) as z:
-            for i, fname in tqdm(enumerate(z.namelist())):
+            i = 0
+            for fname in tqdm(z.namelist()):
+                # print(Path(fname), Path(fname).suffix)
+
+                if Path(fname).suffix != '.JPG':
+                    continue
+
                 if i % 50 == 0:
                     split = 'train'
                     if i % 300 == 0:
@@ -255,7 +261,8 @@ def things_unzip_and_convert(source, target):
 
                     # delete file
                     (temp / fname).unlink()
-    
+
+                i+=1
     rm_tree(temp)
 
 
@@ -274,4 +281,4 @@ def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', c
 
 
 if __name__ == "__main__":
-    things_unzip_and_convert('/home/kairos/Downloads/source', '/home/kairos/Downloads/target')
+    things_unzip_and_convert('/media/kairos/KM_SDRnHDR/AI-Challenge_dataset', '/home/kairos/Downloads/target')
