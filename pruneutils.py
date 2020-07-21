@@ -9,7 +9,7 @@ import time, os, math
 def get_weight_threshold(model, rate):
     importance_all = None
     for name, item in model.module.named_parameters():
-        if 'conv1' in name:
+        if 'conv' in name and 'mask' not in name:
             weights = item.data.view(-1).cpu()
             #importance = weights.pow(2).numpy()
             importance = weights.abs().numpy()
@@ -27,13 +27,11 @@ def get_weight_threshold(model, rate):
 
 def weight_prune(fullmodel, maskmodel, threshold):
     for (fname, fitem), (mname, mitem) in zip(fullmodel.module.named_parameters(), maskmodel.module.named_parameters()):
-        if 'conv' in fname:
+        if 'conv' in fname and 'mask' not in fname:
             #mask_data = torch.gt(fitem.data.pow(2), threshold).float()
             mask_data = torch.gt(fitem.data.abs(), threshold).float()
         if 'mask' in mname:
             mitem.data = mask_data
-    
-    #maskmodel.cuda()
 
 
 def get_filter_importance(model):
@@ -105,17 +103,9 @@ def number_of_zeros(model):
 
 
 def weightcopy(fullmodel, maskmodel):
-    weight_list = []
-
-    for name, item in fullmodel.module.named_parameters():
-        if 'mask' not in name:
-            weight_list.append(item.data.clone())
-    
-    idx = 0
-    for name, item in maskmodel.module.named_parameters():
-        if 'mask' not in name:
-            item.data = weight_list[idx]
-            idx+=1
+    for (fname, fitem), (mname, mitem) in zip(fullmodel.module.named_parameters(), maskmodel.module.named_parameters()):
+        if 'mask' not in mname:
+            mitem.data = fitem.data.clone()
 
 def gradcopy(fullmodel, maskmodel):
     for (fname, fitem), (mname, mitem) in zip(fullmodel.module.named_parameters(), maskmodel.module.named_parameters()):

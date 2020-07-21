@@ -381,7 +381,6 @@ def DPF(args, train_loader, **kwargs):
     maskmodel = kwargs.get('maskmodel')
     criterion = kwargs.get('criterion')
     fulloptimizer = kwargs.get('fulloptimizer')
-    maskoptimizer = kwargs.get('maskoptimizer')
     device = kwargs.get('device')
     
 
