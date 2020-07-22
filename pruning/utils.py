@@ -20,18 +20,18 @@ def get_weight_threshold(model, rate):
                 importance_all = np.append(importance_all, importance)
 
     threshold = np.sort(importance_all)[int(len(importance_all) * rate / 100)]
-
     return threshold
 
 
+def weight_prune(model, threshold):
+    state = model.state_dict()
+    for name, item in model.named_parameters():
+        if 'conv' in name and 'weight' in name:
+            key = name.replace('weight', 'mask')
+            #print(np.mean(state[key].data.cpu().numpy()))
+            state[key].data.copy_(torch.gt(item.data.abs(), threshold).float())
+            #print(np.mean(state[key].data.cpu().numpy()))
 
-def weight_prune(fullmodel, maskmodel, threshold):
-    for (fname, fitem), (mname, mitem) in zip(fullmodel.module.named_parameters(), maskmodel.module.named_parameters()):
-        if 'conv' in fname and 'mask' not in fname:
-            #mask_data = torch.gt(fitem.data.pow(2), threshold).float()
-            mask_data = torch.gt(fitem.data.abs(), threshold).float()
-        if 'mask' in mname:
-            mitem.data = mask_data
 
 
 def get_filter_importance(model):
@@ -51,7 +51,8 @@ def get_filter_importance(model):
     
     return importance_all
 
-def filter_prune(maskmodel, importance, rate):
+
+def filter_prune(model, importance, rate):
     threshold = np.sort(importance)[int(len(importance) * rate / 100)]
     #threshold = np.percentile(importance, rate)
     filter_mask = np.greater(importance, threshold)
@@ -71,12 +72,11 @@ def filter_prune(maskmodel, importance, rate):
                     item.data[i,:,:,:] = 1 if filter_mask[idx] else 0
                     idx+=1
 
-def number_of_zeros(model):
+
+def cal_sparsity(model):
     mask_nonzeros = 0
-    nonzeros = 0
-    grad_nonzeros = 0
     mask_length = 0
-    length = 0
+
     for name, item in model.module.named_parameters():
         if 'mask' in name:
             flatten = item.data.view(-1)
@@ -84,30 +84,21 @@ def number_of_zeros(model):
 
             mask_nonzeros += np.count_nonzero(np_flatten)
             mask_length += item.size(0) * item.size(1) * item.size(2) * item.size(3)
-        elif len(item.size()) == 4:
-            flatten = item.data.view(-1)
-            np_flatten = flatten.cpu().numpy()
-            nonzeros += np.count_nonzero(np_flatten)
 
-            grad_flatten = item.grad.data.view(-1)
-            np_grad_flatten = grad_flatten.cpu().numpy()
-            grad_nonzeros += np.count_nonzero(np_grad_flatten)
+    num_total = mask_length
+    num_zero = mask_length - mask_nonzeros
+    sparsity = (num_zero / num_total) * 100
+    return num_total, num_zero, sparsity
 
-            length += item.size(0) * item.size(1) * item.size(2) * item.size(3)
-
-    print("Length\t\t|| FullNet : {},\tMask : {},\tGrad : {} ||".format(length, mask_length, length))
-    print("Nonzeros\t|| FullNet : {},\tMask : {},\tGrad : {} ||".format(nonzeros, mask_nonzeros, grad_nonzeros))
-    print("NPercent\t|| FullNet : {:.2f}%,\tMask : {:.2f}%,\tGrad : {:.2f}% ||".format(100*nonzeros/length, 100*mask_nonzeros/mask_length, 100*grad_nonzeros/length))
-    
-    return (mask_nonzeros / mask_length) * 100
-
-
+'''
 def weightcopy(fullmodel, maskmodel):
     for (fname, fitem), (mname, mitem) in zip(fullmodel.module.named_parameters(), maskmodel.module.named_parameters()):
         if 'mask' not in mname:
             mitem.data = fitem.data.clone()
-
+'''
+'''
 def gradcopy(fullmodel, maskmodel):
     for (fname, fitem), (mname, mitem) in zip(fullmodel.module.named_parameters(), maskmodel.module.named_parameters()):
         if 'mask' not in fname:
             fitem.grad = mitem.grad.clone()
+'''

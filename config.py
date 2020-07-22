@@ -105,8 +105,10 @@ def config():
     # for pruning
     parser.add_argument('-P', '--prune', dest='prune', action='store_true',
                          help='Use pruning')
+    parser.add_argument('--pruner', default='dpf', type=str,
+                        help='method of pruning to apply (defulat: dpf)')
     parser.add_argument('--prune-type', dest='prune_type', default='unstructured',
-                         type=str, help='unstructured / structured')
+                         type=str, help='specify \'unstructured\' or \'structured\'')
     parser.add_argument('--prune-freq', dest='prune_freq', default=16, type=int,
                          help='update frequency')
     parser.add_argument('--prune-rate', dest='prune_rate', default=0.5, type=float,

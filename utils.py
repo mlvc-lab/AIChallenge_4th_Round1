@@ -11,16 +11,16 @@ from collections import OrderedDict
 import models
 
 
-def load_model(model, ckpt_file, main_gpu, use_cuda: bool=True):
+def load_model(model, ckpt_file, main_gpu, use_cuda: bool=True, strict=True):
     r"""Load model for training, resume training, evaluation,
     quantization and finding similar kernels for new methods
     """
     if use_cuda:
         checkpoint = torch.load(ckpt_file, map_location=lambda storage, loc: storage.cuda(main_gpu))
         try:
-            model.load_state_dict(checkpoint)
+            model.load_state_dict(checkpoint, strict)
         except:
-            model.module.load_state_dict(checkpoint)
+            model.module.load_state_dict(checkpoint, strict)
     else:
         checkpoint = torch.load(ckpt_file, map_location=lambda storage, loc: storage)
         try:

@@ -157,6 +157,29 @@ python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3 -E --ckpt ckpt_best.
 
 ----------
 
+# Total compression processes
+
+This example shows the whole training process to compress the model through pruning, quantization, and distillation.
+
+## 1. train baseline
+
+train the baseline.
+
+```shell
+python main.py cifar100 -a resnet --layers 56 -C -g 0 --save base.pth
+```
+
+## 2. prune the baseline
+
+prune the baseline of the previous step.
+
+```shell
+python main.py cifar100 -a resnet --layers 56 -C -g 0 --load base.pth --save prune.pth \
+-P --prune-type unstructured --prune-freq 16 --prune-rate 0.5 \
+--batch-size 128 --epochs 300 --lr 0.2 --wd 1e-4 --nesterov --scheduler multistep --milestones 150 225 --gamma 0.1
+```
+----------
+
 ## References
 
 - [torchvision models github codes](https://github.com/pytorch/vision/tree/master/torchvision/models)
