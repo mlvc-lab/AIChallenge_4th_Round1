@@ -21,19 +21,25 @@ schedule_types = [
 ]
 
 # sacred setting
-MONGO_URI = 'mongodb://mlvc:mlvcdatabase!@mlvc.khu.ac.kr:31912'
-MONGO_DB = 'training'
+MONGO_URI = 'mongodb://ai:aichallenge!@mlvc.khu.ac.kr:31912/aichallenge'
+MONGO_DB = 'aichallenge'
+
+ckpt_path = {"rexnet-1.0": "checkpoint/rexnetv1_1.0x.pth", 
+               "rexnet-1.3": "checkpoint/rexnetv1_1.3x.pth", 
+               "rexnet-1.5": "checkpoint/rexnetv1_1.5x.pth",
+               "rexnet-2.0": "checkpoint/rexnetv1_2.0x.pth"}
+
 
 
 def config():
     r"""configuration settings
     """
     parser = argparse.ArgumentParser(description='AI-Challenge Base Code')
-    parser.add_argument('dataset', metavar='DATA', default='cifar10',
+    parser.add_argument('dataset', metavar='DATA', default='imagenet',
                         choices=dataset_names,
                         help='dataset: ' +
                              ' | '.join(dataset_names) +
-                             ' (default: cifar10)')
+                             ' (default: imagenet)')
     parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet',
                         choices=model_names,
                         help='model architecture: ' +
@@ -44,7 +50,9 @@ def config():
     parser.add_argument('--width-mult', default=1.0, type=float, metavar='WM',
                         help='width multiplier to thin a network '
                              'uniformly at each layer (default: 1.0)')
-    parser.add_argument('--datapath', default='../data', type=str, metavar='PATH',
+    parser.add_argument('--depth-mult', default=1.0, type=float, metavar='DM',
+                         help='wepth multiplier network (rexnet)')
+    parser.add_argument('--datapath', default='/dataset/ImageNet', type=str, metavar='PATH',
                         help='where you want to load/save your dataset? (default: ../data)')
     parser.add_argument('-j', '--workers', default=8, type=int, metavar='N',
                         help='number of data loading workers (default: 8)')
@@ -65,10 +73,10 @@ def config():
     parser.add_argument('--nest', '--nesterov', dest='nesterov', action='store_true',
                         help='use nesterov momentum?')
     parser.add_argument('--sched', '--scheduler', dest='scheduler', metavar='TYPE',
-                        default='step', type=str, choices=schedule_types,
+                        default='cosine', type=str, choices=schedule_types,
                         help='scheduler: ' +
                              ' | '.join(schedule_types) +
-                             ' (default: step)')
+                             ' (default: cosine)')
     parser.add_argument('--step-size', dest='step_size', default=30,
                         type=int, metavar='STEP',
                         help='period of learning rate decay / '
@@ -90,8 +98,12 @@ def config():
     parser.add_argument('-g', '--gpuids', metavar='GPU', default=[0],
                         type=int, nargs='+',
                         help='GPU IDs for using (default: 0)')
+    parser.add_argument('--efficient-type', default=0, type=int, help="select efficient type (0 : b0, 1 : b1, 2 : b2 ...)")
+
     # for finetuning
     parser.add_argument('-F', '-finetune', dest='finetune', action='store_true',
                         help='finetuning?')
+
+    parser.add_argument('--classnum', type=int, default=1000, help='class number when you use finetune method') 
     cfg = parser.parse_args()
     return cfg

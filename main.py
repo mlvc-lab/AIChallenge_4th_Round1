@@ -9,6 +9,7 @@ import torch.backends.cudnn as cudnn
 
 import models
 import config
+from adamp import AdamP
 from utils import *
 from data import DataLoader
 
@@ -21,7 +22,7 @@ from sacred import Experiment
 from sacred.observers import MongoObserver
 
 # sacred experiment
-ex = Experiment('AI-Challenge_Base')
+ex = Experiment('RexNet-AdamP')
 ex.observers.append(MongoObserver.create(url=config.MONGO_URI,
                                          db_name=config.MONGO_DB))
 
@@ -46,7 +47,9 @@ def main(args):
 
     print('\n=> creating model \'{}\''.format(arch_name))
     model = models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
-                                       width_mult=args.width_mult)
+                                       width_mult=args.width_mult, efficient_type=args.efficient_type, depth_mult=args.depth_mult)
+
+    print('Number of model parameters: {} MB'.format((sum([p.data.nelement() for p in model.parameters()]))*1e-6))
 
     if model is None:
         print('==> unavailable model parameters!! exit...\n')
@@ -56,8 +59,11 @@ def main(args):
     optimizer = optim.SGD(model.parameters(), lr=args.lr,
                           momentum=args.momentum, weight_decay=args.weight_decay,
                           nesterov=args.nesterov)
+    #optimizer = AdamP(model.parameters(), lr=0.001, betas=(0.9, 0.999), weight_decay=1e-2, nesterov=args.nesterov)
     scheduler = set_scheduler(optimizer, args)
     start_epoch = 0
+
+    print(args.gpuids)
 
     if args.cuda:
         torch.cuda.set_device(args.gpuids[0])
@@ -114,11 +120,57 @@ def main(args):
             print('==> Loading Checkpoint \'{}\''.format(args.ckpt))
             checkpoint = load_model(model, ckpt_file,
                                     main_gpu=args.gpuids[0], use_cuda=args.cuda)
+            if args.arch == "efficientnet":
+                in_channel = model.module._fc.in_features
+                model.module._fc = nn.Linear(in_channel, args.classnum)
+
+            elif args.arch == "rexnet":
+                in_channel = model.module.output[1].in_features
+                model.module.output[1] = nn.Linear(in_channel, args.classnum)
+
+            elif args.arch == "resnet":
+                in_channel = model.module.fc.in_features
+                model.module.fc = nn.Linear(in_channel, args.classnum)
+
+            elif args.arch == "mobilenet":
+                in_channel = model.module.linear.in_features
+                model.module.linear = nn.Linear(in_channel, args.classnum)
+
+            elif args.arch == "mobilenetv2":
+                in_channel = model.module.classifier[1].in_features
+                model.module.classifier[1] = nn.Linear(in_channel, args.classnum)
+            else:
+                print("==> wrong model name input")
+                exit()
+            
             print('==> Loaded Checkpoint \'{}\''.format(args.ckpt))
         else:
-            print('==> no checkpoint found \'{}\''.format(
-                opt.ckpt))
-            exit()
+            print("use default checkpoint (Imagenet model)")
+            checkpoint = load_model(model, ckpt_file,
+                                    main_gpu=args.gpuids[0], use_cuda=args.cuda)
+
+            if args.arch == "efficientnet":
+                in_channel = model.module._fc.in_features
+                model.module._fc = nn.Linear(in_channel, args.classnum)
+
+            elif args.arch == "rexnet":
+                in_channel = model.module.output[1].in_features
+                model.module.output[1] = nn.Linear(in_channel, args.classnum)
+
+            elif args.arch == "resnet":
+                in_channel = model.module.fc.in_features
+                model.module.fc = nn.Linear(in_channel, args.classnum)
+
+            elif args.arch == "mobilenet":
+                in_channel = model.module.linear.in_features
+                model.module.linear = nn.Linear(in_channel, args.classnum)
+
+            elif args.arch == "mobilenetv2":
+                in_channel = model.module.classifier[1].in_features
+                model.module.classifier[1] = nn.Linear(in_channel, args.classnum)
+            else:
+                print("==> wrong model name input")
+                exit()
 
     # train...
     best_acc1 = 0.0
