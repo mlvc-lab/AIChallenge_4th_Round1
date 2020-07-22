@@ -88,8 +88,91 @@ def main(args):
         print('==> Loading Checkpoint \'{}\''.format(args.load))
         checkpoint = load_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda)
         print('==> Loaded Checkpoint \'{}\''.format(args.load))
-        
+    
+    ################################
+    # Pruning
+    '''
+    if args.prune:
+        fullmodel = models.resnetmask(data=args.dataset, num_layers=args.layers,
+                                       width_mult=args.width_mult)
+        maskmodel = models.resnetmask(data=args.dataset, num_layers=args.layers,
+                                       width_mult=args.width_mult)
+        fulloptimizer = optim.SGD([w for name, w in fullmodel.named_parameters() if not 'mask' in name],
+                                lr=args.lr,
+                                momentum=args.momentum,
+                                weight_decay=args.weight_decay,
+                                nesterov=args.nesterov
+                                )
 
+        maskscheduler = set_scheduler(fulloptimizer, args)
+
+        if args.cuda:
+            torch.cuda.set_device(args.gpuids[0])
+            with torch.cuda.device(args.gpuids[0]):
+                fullmodel = fullmodel.cuda()
+                maskmodel = maskmodel.cuda()
+                criterion = criterion.cuda()
+            fullmodel = nn.DataParallel(fullmodel, device_ids=args.gpuids,
+                                    output_device=args.gpuids[0])
+            maskmodel = nn.DataParallel(maskmodel, device_ids=args.gpuids,
+                                    output_device=args.gpuids[0])
+            cudnn.benchmark = True
+
+        best_acc1 = 0.0
+        pre_remain = 100.0
+
+        for epoch in range(args.epochs):
+            if (epoch+1) % args.prune_freq==0 and (epoch+1) <= args.milestones[1]:
+                sparsity = args.prune_rate - args.prune_rate * (1 - (epoch+1)/args.milestones[1])**3
+                if args.prune_type == 'structured':
+                    importance = get_filter_importance(fullmodel)
+                    filter_prune(maskmodel, importance, sparsity * 100)
+                elif args.prune_type == 'unstructured':
+                    threshold = get_weight_threshold(fullmodel, sparsity * 100)
+                    weight_prune(fullmodel, maskmodel, threshold)
+                
+
+            print('\n==> {}/{} pruning'.format(
+                arch_name, args.dataset))
+            print('==> Epoch: {}, lr = {}'.format(
+                epoch, optimizer.param_groups[0]["lr"]))
+
+            print('===> [ Pruning ]')
+            acc1_train, acc5_train = DPF(args, train_loader,
+                epoch=epoch, fullmodel=fullmodel, maskmodel=maskmodel,
+                criterion=criterion, fulloptimizer=fulloptimizer)
+            
+            print('===> [ Pruning Test ]')
+            acc1_valid, acc5_valid = DPFtest(args, val_loader,
+                epoch=epoch, maskmodel=maskmodel, criterion=criterion)
+            
+            maskscheduler.step()
+
+            acc1_train = round(acc1_train.item(), 4)
+            acc5_train = round(acc5_train.item(), 4)
+            acc1_valid = round(acc1_valid.item(), 4)
+            acc5_valid = round(acc5_valid.item(), 4)
+
+            state = maskmodel.state_dict()
+            summary = [epoch, acc1_train, acc5_train, acc1_valid, acc5_valid]
+
+             
+            remain = number_of_zeros(maskmodel)
+            number_of_zeros(fullmodel)
+
+            is_best = (acc1_valid >= best_acc1) and (remain < pre_remain)
+            best_acc1 = max(acc1_valid, best_acc1)
+            pre_remain = min(remain, pre_remain)
+            if is_best:
+                save_model(arch_name, args.dataset, state, args.expname)
+            save_summary(arch_name, args.dataset, summary)
+
+            
+
+        exit()
+    '''
+    ################################
+    
     # for training
     if args.run_type == 'train':
         start_epoch = 0
@@ -282,6 +365,127 @@ def validate(args, val_loader, epoch, model, criterion):
     ex.log_scalar('test.loss', losses.avg, epoch)
     ex.log_scalar('test.top1', top1.avg.item(), epoch)
     ex.log_scalar('test.top5', top5.avg.item(), epoch)
+
+    return top1.avg, top5.avg
+
+
+def DPF(args, train_loader, **kwargs):
+    epoch = kwargs.get('epoch')
+    fullmodel = kwargs.get('fullmodel')
+    maskmodel = kwargs.get('maskmodel')
+    criterion = kwargs.get('criterion')
+    fulloptimizer = kwargs.get('fulloptimizer')
+    device = kwargs.get('device')
+    
+
+    batch_time = AverageMeter('Time', ':6.3f')
+    data_time = AverageMeter('Data', ':6.3f')
+    losses = AverageMeter('Loss', ':.4e')
+    top1 = AverageMeter('Acc@1', ':6.2f')
+    top5 = AverageMeter('Acc@5', ':6.2f')
+    progress = ProgressMeter(len(train_loader), batch_time, data_time,
+                             losses, top1, top5, prefix="Epoch: [{}]".format(epoch))
+
+
+    fullmodel.train()
+    maskmodel.train()
+    weightcopy(fullmodel, maskmodel)
+
+    end = time.time()
+    for i, (input, target) in enumerate(train_loader):
+        # measure data loading time
+        data_time.update(time.time() - end)
+
+        if args.cuda:
+            target = target.cuda(non_blocking=True)
+
+        # compute output
+        output = fullmodel(input)
+        loss = criterion(output, target)
+        
+        mask_output = maskmodel(input)
+        mask_loss = criterion(mask_output, target)
+
+        # measure accuracy and record loss
+        acc1, acc5 = accuracy(output, target, topk=(1, 5))
+        losses.update(loss.item(), input.size(0))
+        top1.update(acc1[0], input.size(0))
+        top5.update(acc5[0], input.size(0))
+
+        # compute gradient and do SGD step
+        fulloptimizer.zero_grad()
+        maskmodel.zero_grad()
+        mask_loss.backward()
+
+        gradcopy(fullmodel, maskmodel)
+        fulloptimizer.step()
+        weightcopy(fullmodel, maskmodel)
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        
+        if i % args.print_freq == 0:
+            progress.print(i)
+
+        end = time.time()
+
+    print('====> Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
+          .format(top1=top1, top5=top5))
+
+    # logging at sacred
+    ex.log_scalar('dpf.loss', losses.avg, epoch)
+    ex.log_scalar('dpf.top1', top1.avg.item(), epoch)
+    ex.log_scalar('dpf.top5', top5.avg.item(), epoch)
+
+    return top1.avg, top5.avg
+
+def DPFtest(args, val_loader, **kwargs):
+    epoch = kwargs.get('epoch')
+    maskmodel = kwargs.get('maskmodel')
+    criterion = kwargs.get('criterion')
+    device = kwargs.get('device')
+
+    batch_time = AverageMeter('Time', ':6.3f')
+    losses = AverageMeter('Loss', ':.4e')
+    top1 = AverageMeter('Acc@1', ':6.2f')
+    top5 = AverageMeter('Acc@5', ':6.2f')
+    progress = ProgressMeter(len(val_loader), batch_time, losses, top1, top5,
+                             prefix='Test: ')
+
+    # switch to evaluate mode
+    maskmodel.eval()
+
+    with torch.no_grad():
+        end = time.time()
+        for i, (input, target) in enumerate(val_loader):
+            if args.cuda:
+                target = target.cuda(non_blocking=True)
+
+            # compute output
+            output = maskmodel(input)
+            loss = criterion(output, target)
+
+            # measure accuracy and record loss
+            acc1, acc5 = accuracy(output, target, topk=(1, 5))
+            losses.update(loss.item(), input.size(0))
+            top1.update(acc1[0], input.size(0))
+            top5.update(acc5[0], input.size(0))
+
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+
+            if i % args.print_freq == 0:
+                progress.print(i)
+
+            end = time.time()
+
+        print('====> Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
+              .format(top1=top1, top5=top5))
+
+    # logging at sacred
+    ex.log_scalar('dpftest.loss', losses.avg, epoch)
+    ex.log_scalar('dpftest.top1', top1.avg.item(), epoch)
+    ex.log_scalar('dpftest.top5', top5.avg.item(), epoch)
 
     return top1.avg, top5.avg
 

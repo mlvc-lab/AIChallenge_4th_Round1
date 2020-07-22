@@ -85,7 +85,7 @@ def config():
                              '(must be increasing) (default: 30 80)')
     parser.add_argument('--gamma', default=0.1, type=float,
                         help='multiplicative factor of learning rate decay (default: 0.1)')
-    parser.add_argument('-p', '--print-freq', default=100, type=int,
+    parser.add_argument('--print-freq', default=100, type=int,
                         metavar='N', help='print frequency (default: 100)')
     # for gpu configuration
     parser.add_argument('-C', '--cuda', dest='cuda', action='store_true',
@@ -101,7 +101,16 @@ def config():
                         help='name of checkpoint for testing model (default: None)')
     parser.add_argument('--save', default=None, type=str, metavar='FILE.pth',
                         help='name of checkpoint for saving model (defulat: None)')
-
-
+    
+    # for pruning
+    parser.add_argument('-P', '--prune', dest='prune', action='store_true',
+                         help='Use pruning')
+    parser.add_argument('--prune-type', dest='prune_type', default='unstructured',
+                         type=str, help='unstructured / structured')
+    parser.add_argument('--prune-freq', dest='prune_freq', default=16, type=int,
+                         help='update frequency')
+    parser.add_argument('--prune-rate', dest='prune_rate', default=0.5, type=float,
+                         help='pruning rate') 
+    
     cfg = parser.parse_args()
     return cfg
