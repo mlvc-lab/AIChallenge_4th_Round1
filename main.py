@@ -75,13 +75,18 @@ def main(args):
         cudnn.benchmark = True
 
     # checkpoint file
-    ckpt_dir = pathlib.Path('checkpoint')
-    ckpt_file = ckpt_dir / arch_name / args.dataset / args.ckpt
+    if args.pretrained or args.evaluate:
+        ckpt_file = args.ckpt
+    elif args.transfer:
+        ckpt_file = get_imagenet_checkpoint(args)
+    else:
+        ckpt_dir = None
+        ckpt_file = None
 
     # Data loading
     print('==> Load data..')
     start_time = time.time()
-    train_loader, val_loader = DataLoader(args.batch_size, args.workers,
+    train_loader, val_loader = DataLoader(args.batch_size, args.image_size, args.workers,
                                           args.dataset, args.datapath,
                                           args.cuda)
     elapsed_time = time.time() - start_time
@@ -114,8 +119,19 @@ def main(args):
                 args.ckpt))
             exit()
     
+    if args.pretrained:
+        if isfile(ckpt_file):
+            print('==> Loading Checkpoint \'{}\''.format(args.ckpt))
+            checkpoint = load_model(model, ckpt_file,
+                                    main_gpu=args.gpuids[0], use_cuda=args.cuda)
+            print('==> Loaded Checkpoint \'{}\''.format(args.ckpt))
+        else:
+            print('==> no checkpoint found \'{}\''.format(args.ckpt))
+            exit()
+
     # for fine-tuning
-    if args.finetune:
+    if args.transfer:
+        # if you use checkpoint
         if isfile(ckpt_file):
             print('==> Loading Checkpoint \'{}\''.format(args.ckpt))
             checkpoint = load_model(model, ckpt_file,
@@ -132,10 +148,6 @@ def main(args):
                 in_channel = model.module.fc.in_features
                 model.module.fc = nn.Linear(in_channel, args.classnum)
 
-            elif args.arch == "mobilenet":
-                in_channel = model.module.linear.in_features
-                model.module.linear = nn.Linear(in_channel, args.classnum)
-
             elif args.arch == "mobilenetv2":
                 in_channel = model.module.classifier[1].in_features
                 model.module.classifier[1] = nn.Linear(in_channel, args.classnum)
@@ -144,33 +156,10 @@ def main(args):
                 exit()
             
             print('==> Loaded Checkpoint \'{}\''.format(args.ckpt))
+        
+        # use default checkpoint
         else:
-            print("use default checkpoint (Imagenet model)")
-            checkpoint = load_model(model, ckpt_file,
-                                    main_gpu=args.gpuids[0], use_cuda=args.cuda)
-
-            if args.arch == "efficientnet":
-                in_channel = model.module._fc.in_features
-                model.module._fc = nn.Linear(in_channel, args.classnum)
-
-            elif args.arch == "rexnet":
-                in_channel = model.module.output[1].in_features
-                model.module.output[1] = nn.Linear(in_channel, args.classnum)
-
-            elif args.arch == "resnet":
-                in_channel = model.module.fc.in_features
-                model.module.fc = nn.Linear(in_channel, args.classnum)
-
-            elif args.arch == "mobilenet":
-                in_channel = model.module.linear.in_features
-                model.module.linear = nn.Linear(in_channel, args.classnum)
-
-            elif args.arch == "mobilenetv2":
-                in_channel = model.module.classifier[1].in_features
-                model.module.classifier[1] = nn.Linear(in_channel, args.classnum)
-            else:
-                print("==> wrong model name input")
-                exit()
+            print('==> no checkpoint found \'{}\''.format(args.ckpt))
 
     # train...
     best_acc1 = 0.0

@@ -24,10 +24,6 @@ schedule_types = [
 MONGO_URI = 'mongodb://ai:aichallenge!@mlvc.khu.ac.kr:31912/aichallenge'
 MONGO_DB = 'aichallenge'
 
-ckpt_path = {"rexnet-1.0": "checkpoint/rexnetv1_1.0x.pth", 
-               "rexnet-1.3": "checkpoint/rexnetv1_1.3x.pth", 
-               "rexnet-1.5": "checkpoint/rexnetv1_1.5x.pth",
-               "rexnet-2.0": "checkpoint/rexnetv1_2.0x.pth"}
 
 
 
@@ -58,7 +54,7 @@ def config():
                         help='number of data loading workers (default: 8)')
     parser.add_argument('--epochs', default=200, type=int, metavar='N',
                         help='number of total epochs to run (default: 200)')
-    parser.add_argument('-b', '--batch-size', default=256, type=int, metavar='N',
+    parser.add_argument('-b', '--batch-size', default=32, type=int, metavar='N',
                         help='mini-batch size (default: 256), this is the total '
                              'batch size of all GPUs on the current node when '
                              'using Data Parallel')
@@ -87,7 +83,7 @@ def config():
                              '(must be increasing) (default: 30 80)')
     parser.add_argument('--gamma', default=0.1, type=float,
                         help='multiplicative factor of learning rate decay (default: 0.1)')
-    parser.add_argument('-p', '--print-freq', default=100, type=int,
+    parser.add_argument('-p', '--print-freq', default=10, type=int,
                         metavar='N', help='print frequency (default: 100)')
     parser.add_argument('--ckpt', default='', type=str, metavar='PATH',
                         help='path of checkpoint for testing model (default: none)')
@@ -101,9 +97,12 @@ def config():
     parser.add_argument('--efficient-type', default=0, type=int, help="select efficient type (0 : b0, 1 : b1, 2 : b2 ...)")
 
     # for finetuning
-    parser.add_argument('-F', '-finetune', dest='finetune', action='store_true',
-                        help='finetuning?')
+    parser.add_argument('-pretrained', dest='pretrained', action='store_true',
+                        help='use pretrained model')
 
-    parser.add_argument('--classnum', type=int, default=1000, help='class number when you use finetune method') 
+    parser.add_argument('--classnum', type=int, default=1000, help='class number when you use finetune method')
+
+    parser.add_argument('-transfer', dest='transfer', action="store_true",help='use Imagenet for transfer learning')
+    parser.add_argument('--image-size', default=224, type=int, help="input image size")
     cfg = parser.parse_args()
     return cfg

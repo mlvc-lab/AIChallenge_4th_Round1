@@ -107,18 +107,17 @@ def cifar100_loader(batch_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
-def imagenet_loader(batch_size, num_workers, datapath, cuda):
+def imagenet_loader(batch_size, image_size, num_workers, datapath, cuda):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
     transform_train = transforms.Compose([
-        transforms.RandomResizedCrop(224),
+        transforms.RandomResizedCrop(image_size),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         normalize,
     ])
     transform_val = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
+        transforms.Resize((image_size,image_size)),
         transforms.ToTensor(),
         normalize,
     ])
@@ -152,7 +151,7 @@ def imagenet_loader(batch_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
-def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', cuda=True):
+def DataLoader(batch_size, image_size, num_workers, dataset='cifar10', datapath='../data', cuda=True):
     r"""Dataloader for training/validation
     """
     DataSet = _verify_dataset(dataset)
@@ -161,4 +160,4 @@ def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', c
     elif DataSet == 'cifar100':
         return cifar100_loader(batch_size, num_workers, datapath, cuda)
     elif DataSet == 'imagenet':
-        return imagenet_loader(batch_size, num_workers, datapath, cuda)
+        return imagenet_loader(batch_size, image_size, num_workers, datapath, cuda)

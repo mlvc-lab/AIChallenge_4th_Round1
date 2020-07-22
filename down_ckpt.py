@@ -46,16 +46,11 @@ def save_response_content(response, destination):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download pretrained checkpoints')
-    parser.add_argument('dataset', metavar='DATA', default='cifar10',
-                        choices=dataset_names,
-                        help='dataset: ' +
-                             ' | '.join(dataset_names) +
-                             ' (default: cifar100)')
-    parser.add_argument('-a', '--arch', metavar='ARCH', default='mobilenet',
+    parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet',
                         choices=model_names,
                         help='model architecture: ' +
                              ' | '.join(model_names) +
-                             ' (default: mobilenet)')
+                             ' (default: resnet)')
     parser.add_argument('--layers', default=56, type=int, metavar='N',
                         help='number of layers in VGG/ResNet/WideResNet (default: 56)')
     parser.add_argument('--width-mult', default=1.0, type=float, metavar='WM',
@@ -65,78 +60,21 @@ if __name__ == '__main__':
                         help='output filename of pretrained model from our google drive')
     args = parser.parse_args()
 
-    # `file_id` is an id of each file on google drive
-    # if args.dataset == 'cifar10':
-    #     if args.arch == 'mobilenet':
-    #         file_id = ''
-    #     elif args.arch == 'mobilenetv2':
-    #         file_id = ''
-    #     elif args.arch == 'resnet':
-    #         if args.layers == 20:
-    #             file_id = ''
-    #         elif args.layers == 32:
-    #             file_id = ''
-    #         elif args.layers == 44:
-    #             file_id = ''
-    #         elif args.layers == 56:
-    #             file_id = ''
-    #         elif args.layers == 110:
-    #             file_id = ''
-    #     else:
-    #         print('Not prepared yet..\nProgram exit...')
-    #         exit()
-    # elif args.dataset == 'cifar100':
-    if args.dataset == 'cifar100':
-        # if args.arch == 'mobilenet':
-        #     file_id = ''
-        # elif args.arch == 'mobilenetv2':
-        #     file_id = ''
-        # elif args.arch == 'resnet':
-        #     if args.layers == 20:
-        #         file_id = ''
-        #     elif args.layers == 32:
-        #         file_id = ''
-        #     elif args.layers == 44:
-        #         file_id = ''
-        #     elif args.layers == 56:
-        #         file_id = '1Z2aGYVLiN9W105H2ZgkMgOlEujjqWaPr'
-        #     elif args.layers == 110:
-        #         file_id = ''
-        if args.arch == 'resnet':
-            if args.layers == 56:
-                file_id = '1Z2aGYVLiN9W105H2ZgkMgOlEujjqWaPr'
-        else:
-            print('Not prepared yet..\nProgram exit...')
-            exit()
-    # elif args.dataset == 'imagenet':
-    #     if args.arch == 'mobilenet':
-    #         file_id = ''
-    #     elif args.arch == 'mobilenetv2':
-    #         file_id = ''
-    #     elif args.arch == 'resnet':
-    #         if args.layers == 18:
-    #             file_id = ''
-    #         if args.layers == 34:
-    #             file_id = ''
-    #         if args.layers == 50:
-    #             file_id = ''
-    #         if args.layers == 101:
-    #             file_id = ''
-    #         if args.layers == 152:
-    #             file_id = ''
-    #     else:
-    #         print('Not prepared yet..\nProgram exit...')
-    #         exit()
+    
+    if args.arch == 'resnet':
+        pass
+    elif args.arch == ''
     else:
         print('Not prepared yet..\nProgram exit...')
         exit()
+
 
     arch_name = args.arch
     if args.arch in ['resnet']:
         arch_name += str(args.layers)
 
     ckpt_dir = pathlib.Path('checkpoint')
-    dir_path = ckpt_dir / arch_name / args.dataset
+    dir_path = ckpt_dir / arch_name / "imagenet"
     dir_path.mkdir(parents=True, exist_ok=True)
 
     destination = dir_path / args.out

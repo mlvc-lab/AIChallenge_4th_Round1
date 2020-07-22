@@ -317,7 +317,6 @@ def resnet(data='cifar10', **kwargs):
         data (str): the name of datasets
     """
     num_layers = str(kwargs.get('num_layers'))
-    width_mult = kwargs.get('width_mult')
     if data in ['cifar10', 'cifar100']:
         if num_layers in cfgs_cifar.keys():
             return ResNet_CIFAR(BasicBlock, cfgs_cifar[num_layers], int(data[5:]))

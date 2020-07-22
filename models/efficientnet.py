@@ -387,9 +387,14 @@ class EfficientNet(nn.Module):
 def efficientnet(data='cifar10', **kwargs):
     efficient_type = kwargs.get('efficient_type')
     efficient_arr = ['efficientnet-b0', 'efficientnet-b1', 'efficientnet-b2','efficientnet-b3', 'efficientnet-b4', 
-    'efficientnet-b5', 'efficientnet-b6','efficientnet-b7','efficientnet-b8', 'efficientnet-l2']
+    'efficientnet-b5', 'efficientnet-b6','efficientnet-b7']
+
+    if efficient_type > 7 or efficient_type < 0:
+        print('wrong efficient type')
+        exit()
 
     efficient_type = efficient_arr[efficient_type]
+ 
 
     if data in ['cifar10', 'cifar100']:
         return None

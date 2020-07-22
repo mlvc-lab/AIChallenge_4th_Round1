@@ -194,3 +194,43 @@ def set_arch_name(args):
         arch_name += str(args.layers)
 
     return arch_name
+
+
+def get_imagenet_checkpoint(args):
+    ckpt_path = {"rexnet-1.0": "checkpoint/rexnet/imagenet/rexnetv1_1.0x.pth", 
+               "rexnet-1.3": "checkpoint/rexnet/imagenet/rexnetv1_1.3x.pth", 
+               "rexnet-1.5": "checkpoint/rexnet/imagenet/rexnetv1_1.5x.pth",
+               "rexnet-2.0": "checkpoint/rexnet/imagenet/rexnetv1_2.0x.pth",
+               "resnet18": "checkpoint/resnet/imagenet/resnet18.pth",
+               "resnet34": "checkpoint/resnet/imagenet/resnet34.pth",
+               "resnet50": "checkpoint/resnet/imagenet/resnet50.pth",
+               "resnet101": "checkpoint/resnet/imagenet/resnet101.pth",
+               "efficientnet-b0": "checkpoint/efficientnet/imagenet/efficientnet-b0.pth",
+               "efficientnet-b1": "checkpoint/efficientnet/imagenet/efficientnet-b1.pth",
+               "efficientnet-b2": "checkpoint/efficientnet/imagenet/efficientnet-b2.pth",
+               "efficientnet-b3": "checkpoint/efficientnet/imagenet/efficientnet-b3.pth",
+               "efficientnet-b4": "checkpoint/efficientnet/imagenet/efficientnet-b4.pth",
+               "efficientnet-b5": "checkpoint/efficientnet/imagenet/efficientnet-b5.pth",
+               "efficientnet-b6": "checkpoint/efficientnet/imagenet/efficientnet-b6.pth",
+               "efficientnet-b7": "checkpoint/efficientnet/imagenet/efficientnet-b7.pth",
+               "mobilenetv2": "checkpint/mobilenetv2/imagenet/mobilenetv2.pth"
+}
+
+    if args.arch == 'rexnet':
+        if args.depth != 1.0:
+            print("wrong input depth")
+            exit()
+        return ckpt_path['rexnet-{}'.format(args.width)]
+
+    elif args.arch == 'resnet':
+        return ckpt_path['resnet{}'.format(args.layers)]
+
+    elif args.arch == 'mobilenetv2':
+        return ckpt_path['mobilenetv2']
+
+    elif args.arch == 'efficientnet':
+        modelname = "efficientnet-b{}".format(args.efficient_type)
+        return ckpt_path[modelname]
+
+    else:
+        print("wrong model name!")
