@@ -165,7 +165,7 @@ def main(args):
             # for pruning
             if args.prune:
                 num_total, num_zero, sparsity = pruning.cal_sparsity(model)
-                print('====> sparsity: {:.2f}% || num_zero/num_total: {}/{}\n'.format(sparsity, num_zero, num_total))
+                print('====> sparsity: {:.2f}% || num_zero/num_total: {}/{}'.format(sparsity, num_zero, num_total))
                 # logging at sacred
                 ex.log_scalar('sparsity', sparsity, epoch)
 
