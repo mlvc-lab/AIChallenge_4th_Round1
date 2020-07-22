@@ -2,19 +2,34 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
 
-def grad_scale(x, scale):
-    y = x
-    y_grad = x * scale
-    return (y - y_grad).detach() + y_grad
+class Inferer(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, s, q_n, q_p):
+        x_n = x / s
+        x_q = x_n.clamp(q_n, q_p).round() * s
+        
+        ctx.save_for_backward(x_n)
+        ctx.other = q_n, q_p
+        return x_q
 
-
-def round_pass(x):
-    y = x.round()
-    y_grad = x
-    return (y - y_grad).detach() + y_grad
+    @staticmethod
+    def backward(ctx, grad_x):
+        x_n = ctx.saved_tensors[0]
+        q_n, q_p = ctx.other
+        
+        gs = math.sqrt(x_n.numel() * q_p)
+        
+        idx_s = (x_n <= q_n).float()
+        idx_l = (x_n >= q_p).float()
+        idx_m = torch.ones(size=idx_s.shape, device=idx_s.device) - idx_s - idx_l
+        
+        grad_s = ((idx_s * q_n + idx_l * q_p + idx_m * (-x_n + x_n.round())) * grad_x / gs).sum().unsqueeze(dim=0)
+        grad_x = idx_m * grad_x
+        return grad_x, grad_s, None, None
 
 
 class LSQ(nn.Module):
@@ -43,14 +58,7 @@ class LSQ(nn.Module):
         if self.training and self.do_init == 0:
             self.init_step(x)
         
-        step_grad_scale = 1.0 / ((self.q_p * x.numel()) ** 0.5)
-        step_scale = grad_scale(self.step_abs, step_grad_scale)
-
-        x = x / step_scale
-        x = torch.clamp(x, self.q_n, self.q_p)
-        x = round_pass(x)
-        x = x * step_scale
-        return x
+        return Inferer.apply(x, self.step_abs, self.q_n, self.q_p)
 
     def extra_repr(self):
         return 'nbits={}, q_n={}, q_p={}'.format(int(self.nbits[0]), int(self.q_n), int(self.q_p))

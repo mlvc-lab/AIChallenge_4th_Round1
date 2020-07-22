@@ -10,6 +10,7 @@ import torch.backends.cudnn as cudnn
 import models
 import config
 import pruning
+import quantization
 from utils import *
 from data import DataLoader
 
@@ -46,14 +47,20 @@ def main(args):
     arch_name = set_arch_name(args)
     print('\n=> creating model \'{}\''.format(arch_name))
 
-    if not args.prune:  # base
+    assert not (args.prune and args.quantize), "You should choose one --prune or --quantize"
+    if not args.prune and not args.quantize:  # base
         model = models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
                                            width_mult=args.width_mult)
     elif args.prune:    # for pruning
         pruner = pruning.__dict__[args.pruner]
         model = pruning.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
-                                           width_mult=args.width_mult, mnn=pruner.mnn)
-
+                                                   width_mult=args.width_mult, mnn=pruner.mnn)
+    elif args.quantize: # for quantization
+        quantizer = quantization.__dict__[args.quantizer]
+        model = quantization.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
+                                                        width_mult=args.width_mult, qnn=quantizer.qnn,
+                                                        qcfg=quantizer.__dict__[args.quant_cfg])
+    
     if model is None:
         print('==> unavailable model parameters!! exit...\n')
         exit()
@@ -92,7 +99,9 @@ def main(args):
         assert isfile(ckpt_file), '==> no checkpoint found \"{}\"'.format(args.load)
 
         print('==> Loading Checkpoint \'{}\''.format(args.load))
-        strict = False if args.prune else True  # check pruning
+        # check pruning or quantization
+        strict = False if args.prune or args.quantize else True
+        # load a checkpoint
         checkpoint = load_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
         print('==> Loaded Checkpoint \'{}\''.format(args.load))
     
@@ -111,7 +120,6 @@ def main(args):
             print('==> Epoch: {}, lr = {}'.format(
                 epoch, optimizer.param_groups[0]["lr"]))
 
-            ########################
             # for pruning
             if args.prune:
                 if (epoch+1) % args.prune_freq==0 and (epoch+1) <= args.milestones[1]:

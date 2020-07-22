@@ -175,7 +175,7 @@ prune the baseline of the previous step.
 
 ```shell
 python main.py cifar100 -a resnet --layers 56 -C -g 0 --load base.pth --save prune.pth \
--P --prune-type unstructured --prune-freq 16 --prune-rate 0.5 \
+-P --prune-type unstructured --prune-freq 2 --prune-rate 0.9 \
 --batch-size 128 --epochs 300 --lr 0.2 --wd 1e-4 --nesterov --scheduler multistep --milestones 150 225 --gamma 0.1
 ```
 
@@ -184,7 +184,7 @@ python main.py cifar100 -a resnet --layers 56 -C -g 0 --load base.pth --save pru
 quantize the pruned model from the previous step.
 
 ```shell
-python main.py cifar100 -a resnet --layers 56 -C -g 0 --load base.pth --save prune.pth \
+python main.py cifar100 -a resnet --layers 56 -C -g 0 --load prune.pth --save quant.pth -Q --quantizer lsq --quant-cfg mask --lr 0.01 --scheduler multistep --milestones 100 150
 ```
 
 ----------

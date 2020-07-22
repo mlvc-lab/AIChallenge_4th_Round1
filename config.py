@@ -112,7 +112,15 @@ def config():
     parser.add_argument('--prune-freq', dest='prune_freq', default=16, type=int,
                          help='update frequency')
     parser.add_argument('--prune-rate', dest='prune_rate', default=0.5, type=float,
-                         help='pruning rate') 
+                         help='pruning rate')
     
+    # for quantization
+    parser.add_argument('-Q', '-quantize', dest='quantize', action='store_true',
+                        help='If this is set, the model layers are changed to quantized layers.')
+    parser.add_argument('--quantizer', default='lsq', type=str,
+                        help='method of quantization to apply (defulat: lsq)')
+    parser.add_argument('--quant-cfg', default='base', type=str,
+                        help='name of configuration for the above quantizer (defulat: base)')
+
     cfg = parser.parse_args()
     return cfg
