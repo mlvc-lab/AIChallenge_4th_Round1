@@ -162,7 +162,6 @@ def main(args):
                 save_model(arch_name, args.dataset, state, args.save)
             save_summary(arch_name, args.dataset, summary)
 
-            ########################
             # for pruning
             if args.prune:
                 num_total, num_zero, sparsity = pruning.cal_sparsity(model)

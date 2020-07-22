@@ -28,10 +28,7 @@ def weight_prune(model, threshold):
     for name, item in model.named_parameters():
         if 'conv' in name and 'weight' in name:
             key = name.replace('weight', 'mask')
-            #print(np.mean(state[key].data.cpu().numpy()))
             state[key].data.copy_(torch.gt(item.data.abs(), threshold).float())
-            #print(np.mean(state[key].data.cpu().numpy()))
-
 
 
 def get_filter_importance(model):
