@@ -214,17 +214,11 @@ def things_unzip_and_convert(source, target):
     source = Path(source)
     temp = Path('/tmp/things')
     target = Path(target)
-    train_path = target / 'train'
-    val_path = target / 'val'
 
     # if target.exists():
     #     rm_tree(target)
     if not target.exists():
         target.mkdir()
-    if not train_path.exists():
-        train_path.mkdir()
-    if not val_path.exists():
-        val_path.mkdir()
 
     for zipname in source.glob("*.zip"):
         print(f"zipfile: {zipname}")
@@ -236,18 +230,14 @@ def things_unzip_and_convert(source, target):
                 if Path(fname).suffix != '.JPG':
                     continue
 
-                if i % 50 == 0:
-                    split = 'train'
-                    if i % 300 == 0:
-                        split = 'val'
-
+                if i % 300 == 0:
                     label = str(Path(fname).parent.name).split('_')[-3]
             
                     # check and make label dir
-                    label_dir = train_path / label
+                    label_dir = target / label
                     if not label_dir.exists():
                         label_dir.mkdir()
-                    label_dir = val_path / label
+                    label_dir = target / label
                     if not label_dir.exists():
                         label_dir.mkdir()
 
@@ -257,13 +247,39 @@ def things_unzip_and_convert(source, target):
                     # resize
                     img = Image.open(temp/fname)
                     img.resize((480, 360))
-                    img.save(Path(target)/split/label/(Path(fname).stem + '.jpg'))
+                    img.save(Path(target)/label/(Path(fname).stem + '.jpg'))
 
                     # delete file
                     (temp / fname).unlink()
-
                 i+=1
     rm_tree(temp)
+
+
+def resize_zip(source, target):
+    source = Path(source)
+    temp = Path('./tmp/')
+    target = Path(target)
+
+    # if target.exists():
+    #     rm_tree(tmp)
+    if not target.exists():
+        target.mkdir()
+
+    with ZipFile(source) as z:
+        for fname in tqdm(z.namelist()):
+            if Path(fname).suffix != '.JPG':
+                continue
+            
+            # extract file
+            z.extract(fname, temp)
+
+            # resize
+            img = Image.open(temp/fname)
+            img.resize((480, 360))
+            img.save((temp/fname).stem + '.jpg')
+
+            # delete file
+            (temp / fname).unlink()
 
 
 def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', cuda=True):
@@ -281,4 +297,4 @@ def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', c
 
 
 if __name__ == "__main__":
-    things_unzip_and_convert('/media/kairos/KM_SDRnHDR/AI-Challenge_dataset', '/home/kairos/Downloads/target')
+    things_unzip_and_convert('/home/kairos/Downloads/source', '/home/kairos/Downloads/target')
