@@ -21,7 +21,7 @@ from sacred import Experiment
 from sacred.observers import MongoObserver
 
 # sacred experiment
-ex = Experiment('AI-Challenge_Base')
+ex = Experiment('AI-Challenge')
 ex.observers.append(MongoObserver.create(url=config.MONGO_URI,
                                          db_name=config.MONGO_DB))
 
@@ -52,13 +52,14 @@ def main(args):
         print('==> unavailable model parameters!! exit...\n')
         exit()
 
+    # set criterion and optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=args.lr,
                           momentum=args.momentum, weight_decay=args.weight_decay,
                           nesterov=args.nesterov)
     scheduler = set_scheduler(optimizer, args)
-    start_epoch = 0
-
+    
+    # set multi-gpu
     if args.cuda:
         torch.cuda.set_device(args.gpuids[0])
         with torch.cuda.device(args.gpuids[0]):
@@ -68,11 +69,7 @@ def main(args):
                                 output_device=args.gpuids[0])
         cudnn.benchmark = True
 
-    # checkpoint file
-    ckpt_dir = pathlib.Path('checkpoint')
-    ckpt_file = ckpt_dir / arch_name / args.dataset / args.ckpt
-
-    # Data loading
+    # Dataset loading
     print('==> Load data..')
     start_time = time.time()
     train_loader, val_loader = DataLoader(args.batch_size, args.workers,
@@ -83,117 +80,111 @@ def main(args):
         int(elapsed_time//60), elapsed_time%60))
     print('===> Data loaded..')
 
-    # for evaluation
-    if args.evaluate:
-        if isfile(ckpt_file):
-            print('==> Loading Checkpoint \'{}\''.format(args.ckpt))
-            checkpoint = load_model(model, ckpt_file,
-                                    main_gpu=args.gpuids[0], use_cuda=args.cuda)
-            print('==> Loaded Checkpoint \'{}\''.format(args.ckpt))
+    # load a pre-trained model
+    if args.load is not None:
+        ckpt_file = pathlib.Path('checkpoint') / arch_name / args.dataset / args.load
+        assert isfile(ckpt_file), '==> no checkpoint found \"{}\"'.format(args.load)
+
+        print('==> Loading Checkpoint \'{}\''.format(args.load))
+        checkpoint = load_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda)
+        print('==> Loaded Checkpoint \'{}\''.format(args.load))
+        
+
+    # for training
+    if args.run_type == 'train':
+        start_epoch = 0
+        best_acc1 = 0.0
+        train_time = 0.0
+        validate_time = 0.0
+
+        for epoch in range(start_epoch, args.epochs):
+            print('\n==> {}/{} training'.format(
+                    arch_name, args.dataset))
+            print('==> Epoch: {}, lr = {}'.format(
+                epoch, optimizer.param_groups[0]["lr"]))
+
+            # train for one epoch
+            print('===> [ Training ]')
+            start_time = time.time()
+            acc1_train, acc5_train = train(args, train_loader,
+                epoch=epoch, model=model,
+                criterion=criterion, optimizer=optimizer)
+            elapsed_time = time.time() - start_time
+            train_time += elapsed_time
+            print('====> {:.2f} seconds to train this epoch\n'.format(
+                elapsed_time))
 
             # evaluate on validation set
-            print('\n===> [ Evaluation ]')
+            print('===> [ Validation ]')
             start_time = time.time()
-            acc1, acc5 = validate(args, val_loader, None, model, criterion)
+            acc1_valid, acc5_valid = validate(args, val_loader,
+                epoch=epoch, model=model, criterion=criterion)
             elapsed_time = time.time() - start_time
-            acc1 = round(acc1.item(), 4)
-            acc5 = round(acc5.item(), 4)
-            ckpt_name = '{}-{}-{}'.format(arch_name, args.dataset, args.ckpt[:-4])
-            save_eval([ckpt_name, acc1, acc5])
-            print('====> {:.2f} seconds to evaluate this model\n'.format(
+            validate_time += elapsed_time
+            print('====> {:.2f} seconds to validate this epoch\n'.format(
                 elapsed_time))
-            return acc1
-        else:
-            print('==> no checkpoint found \'{}\''.format(
-                args.ckpt))
-            exit()
+        
+            # learning rate schduling
+            scheduler.step()
+
+            acc1_train = round(acc1_train.item(), 4)
+            acc5_train = round(acc5_train.item(), 4)
+            acc1_valid = round(acc1_valid.item(), 4)
+            acc5_valid = round(acc5_valid.item(), 4)
+
+            # remember best Acc@1 and save checkpoint and summary csv file
+            state = model.state_dict()
+            summary = [epoch, acc1_train, acc5_train, acc1_valid, acc5_valid]
+
+            is_best = acc1_valid > best_acc1
+            best_acc1 = max(acc1_valid, best_acc1)
+            if is_best:
+                save_model(arch_name, args.dataset, state, args.save)
+            save_summary(arch_name, args.dataset, summary)
+
+        # calculate the total training time 
+        avg_train_time = train_time / (args.epochs - start_epoch)
+        avg_valid_time = validate_time / (args.epochs - start_epoch)
+        total_train_time = train_time + validate_time
+        print('====> average training time each epoch: {:,}m {:.2f}s'.format(
+            int(avg_train_time//60), avg_train_time%60))
+        print('====> average validation time each epoch: {:,}m {:.2f}s'.format(
+            int(avg_valid_time//60), avg_valid_time%60))
+        print('====> training time: {}h {}m {:.2f}s'.format(
+            int(train_time//3600), int((train_time%3600)//60), train_time%60))
+        print('====> validation time: {}h {}m {:.2f}s'.format(
+            int(validate_time//3600), int((validate_time%3600)//60), validate_time%60))
+        print('====> total training time: {}h {}m {:.2f}s'.format(
+            int(total_train_time//3600), int((total_train_time%3600)//60), total_train_time%60))
+        
+        return best_acc1
     
-    # for fine-tuning
-    if args.finetune:
-        if isfile(ckpt_file):
-            print('==> Loading Checkpoint \'{}\''.format(args.ckpt))
-            checkpoint = load_model(model, ckpt_file,
-                                    main_gpu=args.gpuids[0], use_cuda=args.cuda)
-            print('==> Loaded Checkpoint \'{}\''.format(args.ckpt))
-        else:
-            print('==> no checkpoint found \'{}\''.format(
-                args.ckpt))
-            exit()
-
-    # train...
-    best_acc1 = 0.0
-    train_time = 0.0
-    validate_time = 0.0
-    for epoch in range(start_epoch, args.epochs):
-        print('\n==> {}/{} training'.format(
-                arch_name, args.dataset))
-        print('==> Epoch: {}, lr = {}'.format(
-            epoch, optimizer.param_groups[0]["lr"]))
-
-        # train for one epoch
-        print('===> [ Training ]')
+    elif args.run_type == 'evaluate':   # for evaluation
+        # for evaluation on validation set
+        print('\n===> [ Evaluation ]')
+        
+        # main evaluation
         start_time = time.time()
-        acc1_train, acc5_train = train(args, train_loader,
-            epoch=epoch, model=model,
-            criterion=criterion, optimizer=optimizer)
+        acc1, acc5 = validate(args, val_loader, None, model, criterion)
         elapsed_time = time.time() - start_time
-        train_time += elapsed_time
-        print('====> {:.2f} seconds to train this epoch\n'.format(
-            elapsed_time))
-
-        # evaluate on validation set
-        print('===> [ Validation ]')
-        start_time = time.time()
-        acc1_valid, acc5_valid = validate(args, val_loader, epoch, model, criterion)
-        elapsed_time = time.time() - start_time
-        validate_time += elapsed_time
-        print('====> {:.2f} seconds to validate this epoch\n'.format(
+        print('====> {:.2f} seconds to evaluate this model\n'.format(
             elapsed_time))
         
-        # learning rate schduling
-        scheduler.step()
+        acc1 = round(acc1.item(), 4)
+        acc5 = round(acc5.item(), 4)
 
-        acc1_train = round(acc1_train.item(), 4)
-        acc5_train = round(acc5_train.item(), 4)
-        acc1_valid = round(acc1_valid.item(), 4)
-        acc5_valid = round(acc5_valid.item(), 4)
+        # save the result
+        ckpt_name = '{}-{}-{}'.format(arch_name, args.dataset, args.load[:-4])
+        save_eval([ckpt_name, acc1, acc5])
+        
+        return acc1
+    else:
+        assert False, 'Unkown --run-type! It should be \{train, evaluate\}.'
+    
 
-        # remember best Acc@1 and save checkpoint and summary csv file
-        state = model.state_dict()
-        summary = [epoch, acc1_train, acc5_train, acc1_valid, acc5_valid]
-
-        is_best = acc1_valid > best_acc1
-        best_acc1 = max(acc1_valid, best_acc1)
-        if is_best:
-            save_model(arch_name, args.dataset, state)
-        save_summary(arch_name, args.dataset, summary)
-
-    # calculate time 
-    avg_train_time = train_time / (args.epochs - start_epoch)
-    avg_valid_time = validate_time / (args.epochs - start_epoch)
-    total_train_time = train_time + validate_time
-    print('====> average training time each epoch: {:,}m {:.2f}s'.format(
-        int(avg_train_time//60), avg_train_time%60))
-    print('====> average validation time each epoch: {:,}m {:.2f}s'.format(
-        int(avg_valid_time//60), avg_valid_time%60))
-    print('====> training time: {}h {}m {:.2f}s'.format(
-        int(train_time//3600), int((train_time%3600)//60), train_time%60))
-    print('====> validation time: {}h {}m {:.2f}s'.format(
-        int(validate_time//3600), int((validate_time%3600)//60), validate_time%60))
-    print('====> total training time: {}h {}m {:.2f}s'.format(
-        int(total_train_time//3600), int((total_train_time%3600)//60), total_train_time%60))
-
-    return best_acc1
-
-
-def train(args, train_loader, **kwargs):
+def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
     r"""Train model each epoch
     """
-    epoch = kwargs.get('epoch')
-    model = kwargs.get('model')
-    criterion = kwargs.get('criterion')
-    optimizer = kwargs.get('optimizer')
-
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')

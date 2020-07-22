@@ -40,14 +40,16 @@ def load_model(model, ckpt_file, main_gpu, use_cuda: bool=True):
     return checkpoint
 
 
-def save_model(arch_name, dataset, state):
+def save_model(arch_name, dataset, state, ckpt_name='ckpt_best.pth'):
     r"""Save the model (checkpoint) at the training time
     """
     dir_ckpt = pathlib.Path('checkpoint')
     dir_path = dir_ckpt / arch_name / dataset
     dir_path.mkdir(parents=True, exist_ok=True)
 
-    model_file = dir_path / 'ckpt_best.pth'
+    if ckpt_name is None:
+        ckpt_name = 'ckpt_best.pth'
+    model_file = dir_path / ckpt_name
     torch.save(state, model_file)
 
 

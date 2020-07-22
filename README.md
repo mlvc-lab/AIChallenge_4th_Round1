@@ -134,25 +134,25 @@ optional arguments:
 #### Train a network using default scheduler (stepLR) with multi-GPU
 
 ```shell
-python main.py cifar10 -a resnet --layers 56 -C -g 0 1 2 3
+python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3
 ```
 
 or
 
 ``` shell
-python main.py cifar10 -a mobilenet -C -g 0 1 2 3
+python main.py cifar100 -a mobilenet -C -g 0 1 2 3
 ```
 
 #### Train a network using multi-step scheduler with multi-GPU
 
 ```shell
-python main.py cifar10 -a resnet --layers 56 -C -g 0 1 2 3 --scheduler multistep --milestones 100 150 --gamma 0.1
+python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3 --scheduler multistep --milestones 100 150 --gamma 0.1
 ```
 
 ### Test
 
 ```shell
-python main.py cifar10 -a resnet --layers 56 -C -g 0 1 2 3 -E --ckpt ckpt_best.pth
+python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3 -E --ckpt ckpt_best.pth
 ```
 
 ----------

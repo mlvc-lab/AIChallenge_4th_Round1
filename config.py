@@ -23,6 +23,9 @@ schedule_types = [
 # sacred setting
 MONGO_URI = 'mongodb://ai:aichallenge!@mlvc.khu.ac.kr:31912/aichallenge'
 MONGO_DB = 'aichallenge'
+# previous setting
+#MONGO_URI = 'mongodb://mlvc:mlvcdatabase!@mlvc.khu.ac.kr:31912'
+#MONGO_DB = 'training'
 
 
 def config():
@@ -33,7 +36,8 @@ def config():
                         choices=dataset_names,
                         help='dataset: ' +
                              ' | '.join(dataset_names) +
-                             ' (default: cifar10)')
+                             ' (default: cifar10)')     
+    # for model architecture
     parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet',
                         choices=model_names,
                         help='model architecture: ' +
@@ -44,10 +48,12 @@ def config():
     parser.add_argument('--width-mult', default=1.0, type=float, metavar='WM',
                         help='width multiplier to thin a network '
                              'uniformly at each layer (default: 1.0)')
+    # for dataset
     parser.add_argument('--datapath', default='../data', type=str, metavar='PATH',
                         help='where you want to load/save your dataset? (default: ../data)')
     parser.add_argument('-j', '--workers', default=8, type=int, metavar='N',
                         help='number of data loading workers (default: 8)')
+    # for learning policy
     parser.add_argument('--epochs', default=200, type=int, metavar='N',
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('-b', '--batch-size', default=256, type=int, metavar='N',
@@ -81,17 +87,21 @@ def config():
                         help='multiplicative factor of learning rate decay (default: 0.1)')
     parser.add_argument('-p', '--print-freq', default=100, type=int,
                         metavar='N', help='print frequency (default: 100)')
-    parser.add_argument('--ckpt', default='', type=str, metavar='PATH',
-                        help='path of checkpoint for testing model (default: none)')
-    parser.add_argument('-E', '--evaluate', dest='evaluate', action='store_true',
-                        help='test model?')
+    # for gpu configuration
     parser.add_argument('-C', '--cuda', dest='cuda', action='store_true',
                         help='use cuda?')
     parser.add_argument('-g', '--gpuids', metavar='GPU', default=[0],
                         type=int, nargs='+',
                         help='GPU IDs for using (default: 0)')
-    # for finetuning
-    parser.add_argument('-F', '-finetune', dest='finetune', action='store_true',
-                        help='finetuning?')
+    # specify run type
+    parser.add_argument('--run-type', default='train', type=str, metavar='TYPE',
+                        help='type of run the main function e.g. train or evaluate (defulat: train)')
+    # for load and save
+    parser.add_argument('--load', default=None, type=str, metavar='FILE.pth',
+                        help='name of checkpoint for testing model (default: None)')
+    parser.add_argument('--save', default=None, type=str, metavar='FILE.pth',
+                        help='name of checkpoint for saving model (defulat: None)')
+
+
     cfg = parser.parse_args()
     return cfg
