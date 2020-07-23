@@ -95,32 +95,52 @@ def config():
                         help='GPU IDs for using (default: 0)')
     # specify run type
     parser.add_argument('--run-type', default='train', type=str, metavar='TYPE',
-                        help='type of run the main function e.g. train or evaluate (defulat: train)')
+                        help='type of run the main function e.g. train or evaluate (default: train)')
     # for load and save
     parser.add_argument('--load', default=None, type=str, metavar='FILE.pth',
                         help='name of checkpoint for testing model (default: None)')
     parser.add_argument('--save', default=None, type=str, metavar='FILE.pth',
-                        help='name of checkpoint for saving model (defulat: None)')
-    
+                        help='name of checkpoint for saving model (default: None)')
+    #############
     # for pruning
     parser.add_argument('-P', '--prune', dest='prune', action='store_true',
                          help='Use pruning')
     parser.add_argument('--pruner', default='dpf', type=str,
-                        help='method of pruning to apply (defulat: dpf)')
+                        help='method of pruning to apply (default: dpf)')
     parser.add_argument('--prune-type', dest='prune_type', default='unstructured',
                          type=str, help='specify \'unstructured\' or \'structured\'')
     parser.add_argument('--prune-freq', dest='prune_freq', default=16, type=int,
                          help='update frequency')
     parser.add_argument('--prune-rate', dest='prune_rate', default=0.5, type=float,
                          help='pruning rate')
-    
+    ##################
     # for quantization
-    parser.add_argument('-Q', '-quantize', dest='quantize', action='store_true',
+    parser.add_argument('-Q', '--quantize', dest='quantize', action='store_true',
                         help='If this is set, the model layers are changed to quantized layers.')
     parser.add_argument('--quantizer', default='lsq', type=str,
-                        help='method of quantization to apply (defulat: lsq)')
+                        help='method of quantization to apply (default: lsq)')
     parser.add_argument('--quant-cfg', default='base', type=str,
-                        help='name of configuration for the above quantizer (defulat: base)')
+                        help='name of configuration for the above quantizer (default: base)')
+    ##################
+    # for distillation
+    parser.add_argument('-D', '--distill', dest='distill', action='store_true',
+                        help='If this is set, teacher model is loaded to distill the training student.')
+    parser.add_argument('--dist-type', default='KD', type=str,
+                        help='self distillation type, empty means exit (default: KD)')
+    parser.add_argument('--num-local', default=1, type=int,
+                        help='number of locals (default: 1)')
+    parser.add_argument('--num-SD', default=1, type=int,
+                        help='SD number of groups (default: 1)')
+    # teacher arch
+    parser.add_argument('--tch-arch', default='wideresnet', type=str,
+                        help='choose pre-trained teacher')
+    parser.add_argument('--tch-layers', default=56, type=int, metavar='N',
+                        help='number of layers in ResNet (default: 56)')    # resnet, wideresnet, resnext
+    parser.add_argument('--tch-width-mult', default=1.0, type=float, metavar='WM',
+                        help='width multiplier to thin a network '
+                             'uniformly at each layer (default: 1.0)')      # resnet, mobilenet
+    parser.add_argument('--tch-width-factor', default=4 , type=int,
+                        help='wide factor for wideresnet')                  # wideresnet
 
     cfg = parser.parse_args()
     return cfg
