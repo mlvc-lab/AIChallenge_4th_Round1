@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+import random
+import shutil
 from zipfile import ZipFile
 
 from PIL import Image
@@ -222,12 +224,14 @@ def things_unzip_and_convert(source, target):
 
     for zipname in source.glob("*.zip"):
         print(f"zipfile: {zipname}")
+        if zipname.name in ['things_v1.zip', '06_상품.zip']:
+            continue
         with ZipFile(zipname) as z:
             i = 0
             for fname in tqdm(z.namelist()):
                 # print(Path(fname), Path(fname).suffix)
 
-                if Path(fname).suffix != '.JPG':
+                if not Path(fname).suffix in ['.JPG', '.jpg' ]:
                     continue
 
                 if i % 300 == 0:
@@ -255,31 +259,40 @@ def things_unzip_and_convert(source, target):
     rm_tree(temp)
 
 
-def resize_zip(source, target):
-    source = Path(source)
-    temp = Path('./tmp/')
-    target = Path(target)
+def data_split(source, target):
+    # constant
+    train = 'train'
+    val = 'val'
 
-    # if target.exists():
-    #     rm_tree(tmp)
+    # prepare
+    source = Path(source)
+    target = Path(target)
+    if not source.exists():
+        raise FileNotFoundError
     if not target.exists():
         target.mkdir()
 
-    with ZipFile(source) as z:
-        for fname in tqdm(z.namelist()):
-            if Path(fname).suffix != '.JPG':
-                continue
-            
-            # extract file
-            z.extract(fname, temp)
+    train_path = target / train
+    val_path = target / val
+    if not train_path.exists():
+        train_path.mkdir()
+    if not val_path.exists():
+        val_path.mkdir()
 
-            # resize
-            img = Image.open(temp/fname)
-            img.resize((480, 360))
-            img.save((temp/fname).stem + '.jpg')
+    for classname in tqdm(source.iterdir()):
+        if not (train_path / classname.name).exists():
+            (train_path / classname.name).mkdir()
+        if not (val_path / classname.name).exists():
+            (val_path / classname.name).mkdir()
 
-            # delete file
-            (temp / fname).unlink()
+        # split
+        for instance in tqdm(classname.iterdir()):
+            if random.random() > 0.5:
+                # print(str(instance), str(train_path/classname.name/instance.name))
+                shutil.copy(str(instance), str(train_path/classname.name/instance.name))
+            else:
+                shutil.copy(str(instance), str(val_path/classname.name/instance.name))
+                # print(str(instance), str(val_path/classname.name/instance.name))
 
 
 def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', cuda=True):
@@ -297,4 +310,6 @@ def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', c
 
 
 if __name__ == "__main__":
-    things_unzip_and_convert('/home/kairos/Downloads/source', '/home/kairos/Downloads/target')
+    # things_unzip_and_convert('/home/kairos/Downloads/source', '/media/kairos/Data/target')
+    # data_split('/home/kairos/Downloads/things', '/home/kairos/Downloads/things_split')
+    pass
