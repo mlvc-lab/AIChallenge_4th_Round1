@@ -7,6 +7,9 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 
+# Added for Cut-Mix
+import numpy as np
+
 import models
 import config
 from adamp import AdamP
@@ -25,7 +28,6 @@ from sacred.observers import MongoObserver
 ex = Experiment('RexNet-AdamP')
 ex.observers.append(MongoObserver.create(url=config.MONGO_URI,
                                          db_name=config.MONGO_DB))
-
 
 @ex.config
 def hyperparam():
@@ -63,8 +65,6 @@ def main(args):
     scheduler = set_scheduler(optimizer, args)
     start_epoch = 0
 
-    print(args.gpuids)
-
     if args.cuda:
         torch.cuda.set_device(args.gpuids[0])
         with torch.cuda.device(args.gpuids[0]):
@@ -89,6 +89,7 @@ def main(args):
     train_loader, val_loader = DataLoader(args.batch_size, args.image_size, args.workers,
                                           args.dataset, args.datapath,
                                           args.cuda)
+    target_class_number = len(train_loader.dataset.classes)
     elapsed_time = time.time() - start_time
     print('===> Data loading time: {:,}m {:.2f}s'.format(
         int(elapsed_time//60), elapsed_time%60))
@@ -138,19 +139,19 @@ def main(args):
                                     main_gpu=args.gpuids[0], use_cuda=args.cuda)
             if args.arch == "efficientnet":
                 in_channel = model.module._fc.in_features
-                model.module._fc = nn.Linear(in_channel, args.classnum)
+                model.module._fc = nn.Linear(in_channel, target_class_number)
 
             elif args.arch == "rexnet":
                 in_channel = model.module.output[1].in_features
-                model.module.output[1] = nn.Linear(in_channel, args.classnum)
+                model.module.output[1] = nn.Linear(in_channel, target_class_number)
 
             elif args.arch == "resnet":
                 in_channel = model.module.fc.in_features
-                model.module.fc = nn.Linear(in_channel, args.classnum)
+                model.module.fc = nn.Linear(in_channel, target_class_number)
 
             elif args.arch == "mobilenetv2":
                 in_channel = model.module.classifier[1].in_features
-                model.module.classifier[1] = nn.Linear(in_channel, args.classnum)
+                model.module.classifier[1] = nn.Linear(in_channel, target_class_number)
             else:
                 print("==> wrong model name input")
                 exit()
@@ -254,9 +255,25 @@ def train(args, train_loader, **kwargs):
         if args.cuda:
             target = target.cuda(non_blocking=True)
 
-        # compute output
-        output = model(input)
-        loss = criterion(output, target)
+        # Added for Cut-Mix
+        r = np.random.rand(1)
+        if args.beta > 0 and r < args.cutmix_prob:
+            # generate mixed sample
+            lam = np.random.beta(args.beta, args.beta)
+            rand_index = torch.randperm(input.size()[0]).cuda()
+            target_a = target
+            target_b = target[rand_index]
+            bbx1, bby1, bbx2, bby2 = cutmix(input.size(), lam)
+            input[:, :, bbx1:bbx2, bby1:bby2] = input[rand_index, :, bbx1:bbx2, bby1:bby2]
+            # adjust lambda to exactly match pixel ratio
+            lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (input.size()[-1] * input.size()[-2]))
+            # compute output
+            output = model(input)
+            loss = criterion(output, target_a) * lam + criterion(output, target_b) * (1. - lam)
+        else:
+            # compute output
+            output = model(input)
+            loss = criterion(output, target)
 
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))

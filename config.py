@@ -96,13 +96,17 @@ def config():
                         help='GPU IDs for using (default: 0)')
     parser.add_argument('--efficient-type', default=0, type=int, help="select efficient type (0 : b0, 1 : b1, 2 : b2 ...)")
 
-    # for finetuning
+    # for pretrained & transfer Learning
     parser.add_argument('-pretrained', dest='pretrained', action='store_true',
                         help='use pretrained model')
-
-    parser.add_argument('--classnum', type=int, default=1000, help='class number when you use finetune method')
-
     parser.add_argument('-transfer', dest='transfer', action="store_true",help='use Imagenet for transfer learning')
     parser.add_argument('--image-size', default=224, type=int, help="input image size")
+
+    # for Cut-Mix
+    parser.add_argument('--beta', default=0, type=float,
+                        help='hyperparameter beta')
+    parser.add_argument('--cutmix_prob', default=0, type=float,
+                        help='cutmix probability')
+
     cfg = parser.parse_args()
     return cfg
