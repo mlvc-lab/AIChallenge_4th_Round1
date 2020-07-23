@@ -6,9 +6,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
+import numpy as np
 
 import models
 import config
+import pruning
 from utils import *
 from data import DataLoader
 
@@ -21,7 +23,7 @@ from sacred import Experiment
 from sacred.observers import MongoObserver
 
 # sacred experiment
-ex = Experiment('AI-Challenge_Base')
+ex = Experiment('AI-Challenge_Pruning')
 ex.observers.append(MongoObserver.create(url=config.MONGO_URI,
                                          db_name=config.MONGO_DB))
 
@@ -43,22 +45,28 @@ def main(args):
 
     # set model name
     arch_name = set_arch_name(args)
-
     print('\n=> creating model \'{}\''.format(arch_name))
-    model = models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
-                                       width_mult=args.width_mult)
+
+    if not args.prune:  # base
+        model = models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
+                                           width_mult=args.width_mult)
+    elif args.prune:    # for pruning
+        pruner = pruning.__dict__[args.pruner]
+        model = pruning.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
+                                           width_mult=args.width_mult, mnn=pruner.mnn)
 
     if model is None:
         print('==> unavailable model parameters!! exit...\n')
         exit()
 
+    # set criterion and optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=args.lr,
                           momentum=args.momentum, weight_decay=args.weight_decay,
                           nesterov=args.nesterov)
     scheduler = set_scheduler(optimizer, args)
-    start_epoch = 0
-
+    
+    # set multi-gpu
     if args.cuda:
         torch.cuda.set_device(args.gpuids[0])
         with torch.cuda.device(args.gpuids[0]):
@@ -68,11 +76,7 @@ def main(args):
                                 output_device=args.gpuids[0])
         cudnn.benchmark = True
 
-    # checkpoint file
-    ckpt_dir = pathlib.Path('checkpoint')
-    ckpt_file = ckpt_dir / arch_name / args.dataset / args.ckpt
-
-    # Data loading
+    # Dataset loading
     print('==> Load data..')
     start_time = time.time()
     train_loader, val_loader = DataLoader(args.batch_size, args.workers,
@@ -83,197 +87,127 @@ def main(args):
         int(elapsed_time//60), elapsed_time%60))
     print('===> Data loaded..')
 
-    # Pruning
-    if args.prune:
-        fullmodel = models.resnetmask(data=args.dataset, num_layers=args.layers,
-                                       width_mult=args.width_mult)
-        maskmodel = models.resnetmask(data=args.dataset, num_layers=args.layers,
-                                       width_mult=args.width_mult)
-        fulloptimizer = optim.SGD([w for name, w in fullmodel.named_parameters() if not 'mask' in name],
-                                lr=args.lr,
-                                momentum=args.momentum,
-                                weight_decay=args.weight_decay,
-                                nesterov=args.nesterov
-                                )
+    # load a pre-trained model
+    if args.load is not None:
+        ckpt_file = pathlib.Path('checkpoint') / arch_name / args.dataset / args.load
+        assert isfile(ckpt_file), '==> no checkpoint found \"{}\"'.format(args.load)
 
-        maskscheduler = set_scheduler(fulloptimizer, args)
+        print('==> Loading Checkpoint \'{}\''.format(args.load))
+        strict = False if args.prune else True  # check pruning
+        checkpoint = load_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
+        print('==> Loaded Checkpoint \'{}\''.format(args.load))
+    
 
-        if args.cuda:
-            torch.cuda.set_device(args.gpuids[0])
-            with torch.cuda.device(args.gpuids[0]):
-                fullmodel = fullmodel.cuda()
-                maskmodel = maskmodel.cuda()
-                criterion = criterion.cuda()
-            fullmodel = nn.DataParallel(fullmodel, device_ids=args.gpuids,
-                                    output_device=args.gpuids[0])
-            maskmodel = nn.DataParallel(maskmodel, device_ids=args.gpuids,
-                                    output_device=args.gpuids[0])
-            cudnn.benchmark = True
-
+    # for training
+    if args.run_type == 'train':
+        # init parameters
+        start_epoch = 0
         best_acc1 = 0.0
-        pre_remain = 100.0
+        train_time = 0.0
+        validate_time = 0.0
 
-        for epoch in range(args.epochs):
-            if (epoch+1) % args.prune_freq==0 and (epoch+1) <= args.milestones[1]:
-                sparsity = args.prune_rate - args.prune_rate * (1 - (epoch+1)/args.milestones[1])**3
-                if args.prune_type == 'structured':
-                    importance = get_filter_importance(fullmodel)
-                    filter_prune(maskmodel, importance, sparsity * 100)
-                elif args.prune_type == 'unstructured':
-                    threshold = get_weight_threshold(fullmodel, sparsity * 100)
-                    weight_prune(fullmodel, maskmodel, threshold)
-                
-
-            print('\n==> {}/{} pruning'.format(
-                arch_name, args.dataset))
+        for epoch in range(start_epoch, args.epochs):
+            print('\n==> {}/{} training'.format(
+                    arch_name, args.dataset))
             print('==> Epoch: {}, lr = {}'.format(
                 epoch, optimizer.param_groups[0]["lr"]))
 
-            print('===> [ Pruning ]')
-            acc1_train, acc5_train = DPF(args, train_loader,
-                epoch=epoch, fullmodel=fullmodel, maskmodel=maskmodel,
-                criterion=criterion, fulloptimizer=fulloptimizer)
-            
-            print('===> [ Pruning Test ]')
-            acc1_valid, acc5_valid = DPFtest(args, val_loader,
-                epoch=epoch, maskmodel=maskmodel, criterion=criterion)
-            
-            maskscheduler.step()
+            # train for one epoch
+            print('===> [ Training ]')
+            start_time = time.time()
+            acc1_train, acc5_train = train(args, train_loader,
+                epoch=epoch, model=model,
+                criterion=criterion, optimizer=optimizer)
+            elapsed_time = time.time() - start_time
+            train_time += elapsed_time
+            print('====> {:.2f} seconds to train this epoch\n'.format(
+                elapsed_time))
+
+            # evaluate on validation set
+            print('===> [ Validation ]')
+            start_time = time.time()
+            acc1_valid, acc5_valid = validate(args, val_loader,
+                epoch=epoch, model=model, criterion=criterion)
+            elapsed_time = time.time() - start_time
+            validate_time += elapsed_time
+            print('====> {:.2f} seconds to validate this epoch'.format(
+                elapsed_time))
+        
+            # learning rate schduling
+            scheduler.step()
 
             acc1_train = round(acc1_train.item(), 4)
             acc5_train = round(acc5_train.item(), 4)
             acc1_valid = round(acc1_valid.item(), 4)
             acc5_valid = round(acc5_valid.item(), 4)
 
-            state = maskmodel.state_dict()
+            # remember best Acc@1 and save checkpoint and summary csv file
+            state = model.state_dict()
             summary = [epoch, acc1_train, acc5_train, acc1_valid, acc5_valid]
 
-             
-            remain = number_of_zeros(maskmodel)
-            number_of_zeros(fullmodel)
-
-            is_best = (acc1_valid >= best_acc1) and (remain < pre_remain)
+            is_best = acc1_valid > best_acc1
             best_acc1 = max(acc1_valid, best_acc1)
-            pre_remain = min(remain, pre_remain)
             if is_best:
-                save_model(arch_name, args.dataset, state, args.expname)
+                save_model(arch_name, args.dataset, state, args.save)
             save_summary(arch_name, args.dataset, summary)
 
-            
+            ########################
+            # for pruning
+            if args.prune:
+                num_total, num_zero, sparsity = pruning.cal_sparsity(model)
+                print('====> sparsity: {:.2f}% || num_zero/num_total: {}/{}'.format(sparsity, num_zero, num_total))
+                # logging at sacred
+                ex.log_scalar('sparsity', sparsity, epoch)
 
-        exit()
+            # end of one epoch
+            print()
 
-    # for evaluation
-    if args.evaluate:
-        if isfile(ckpt_file):
-            print('==> Loading Checkpoint \'{}\''.format(args.ckpt))
-            checkpoint = load_model(model, ckpt_file,
-                                    main_gpu=args.gpuids[0], use_cuda=args.cuda)
-            print('==> Loaded Checkpoint \'{}\''.format(args.ckpt))
-
-            # evaluate on validation set
-            print('\n===> [ Evaluation ]')
-            start_time = time.time()
-            acc1, acc5 = validate(args, val_loader, None, model, criterion)
-            elapsed_time = time.time() - start_time
-            acc1 = round(acc1.item(), 4)
-            acc5 = round(acc5.item(), 4)
-            ckpt_name = '{}-{}-{}'.format(arch_name, args.dataset, args.ckpt[:-4])
-            save_eval([ckpt_name, acc1, acc5])
-            print('====> {:.2f} seconds to evaluate this model\n'.format(
-                elapsed_time))
-            return acc1
-        else:
-            print('==> no checkpoint found \'{}\''.format(
-                args.ckpt))
-            exit()
+        # calculate the total training time 
+        avg_train_time = train_time / (args.epochs - start_epoch)
+        avg_valid_time = validate_time / (args.epochs - start_epoch)
+        total_train_time = train_time + validate_time
+        print('====> average training time each epoch: {:,}m {:.2f}s'.format(
+            int(avg_train_time//60), avg_train_time%60))
+        print('====> average validation time each epoch: {:,}m {:.2f}s'.format(
+            int(avg_valid_time//60), avg_valid_time%60))
+        print('====> training time: {}h {}m {:.2f}s'.format(
+            int(train_time//3600), int((train_time%3600)//60), train_time%60))
+        print('====> validation time: {}h {}m {:.2f}s'.format(
+            int(validate_time//3600), int((validate_time%3600)//60), validate_time%60))
+        print('====> total training time: {}h {}m {:.2f}s'.format(
+            int(total_train_time//3600), int((total_train_time%3600)//60), total_train_time%60))
+        
+        return best_acc1
     
-    # for fine-tuning
-    if args.finetune:
-        if isfile(ckpt_file):
-            print('==> Loading Checkpoint \'{}\''.format(args.ckpt))
-            checkpoint = load_model(model, ckpt_file,
-                                    main_gpu=args.gpuids[0], use_cuda=args.cuda)
-            print('==> Loaded Checkpoint \'{}\''.format(args.ckpt))
-        else:
-            print('==> no checkpoint found \'{}\''.format(
-                opt.ckpt))
-            exit()
-
-    # train...
-    best_acc1 = 0.0
-    train_time = 0.0
-    validate_time = 0.0
-    for epoch in range(start_epoch, args.epochs):
-        print('\n==> {}/{} training'.format(
-                arch_name, args.dataset))
-        print('==> Epoch: {}, lr = {}'.format(
-            epoch, optimizer.param_groups[0]["lr"]))
-
-        # train for one epoch
-        print('===> [ Training ]')
+    elif args.run_type == 'evaluate':   # for evaluation
+        # for evaluation on validation set
+        print('\n===> [ Evaluation ]')
+        
+        # main evaluation
         start_time = time.time()
-        acc1_train, acc5_train = train(args, train_loader,
-            epoch=epoch, model=model,
-            criterion=criterion, optimizer=optimizer)
-        elapsed_time = time.time() - start_time
-        train_time += elapsed_time
-        print('====> {:.2f} seconds to train this epoch\n'.format(
-            elapsed_time))
 
-        # evaluate on validation set
-        print('===> [ Validation ]')
-        start_time = time.time()
-        acc1_valid, acc5_valid = validate(args, val_loader, epoch, model, criterion)
+        acc1, acc5 = validate(args, val_loader, None, model, criterion)
         elapsed_time = time.time() - start_time
-        validate_time += elapsed_time
-        print('====> {:.2f} seconds to validate this epoch\n'.format(
+        print('====> {:.2f} seconds to evaluate this model\n'.format(
             elapsed_time))
         
-        # learning rate schduling
-        scheduler.step()
+        acc1 = round(acc1.item(), 4)
+        acc5 = round(acc5.item(), 4)
 
-        acc1_train = round(acc1_train.item(), 4)
-        acc5_train = round(acc5_train.item(), 4)
-        acc1_valid = round(acc1_valid.item(), 4)
-        acc5_valid = round(acc5_valid.item(), 4)
+        # save the result
+        ckpt_name = '{}-{}-{}'.format(arch_name, args.dataset, args.load[:-4])
+        save_eval([ckpt_name, acc1, acc5])
+        
+        _,_,sparsity = pruning.cal_sparsity(model)
+        print('Sparsity : {}'.format(sparsity))
+        return acc1
+    else:
+        assert False, 'Unkown --run-type! It should be \{train, evaluate\}.'
+    
 
-        # remember best Acc@1 and save checkpoint and summary csv file
-        state = model.state_dict()
-        summary = [epoch, acc1_train, acc5_train, acc1_valid, acc5_valid]
-
-        is_best = acc1_valid > best_acc1
-        best_acc1 = max(acc1_valid, best_acc1)
-        if is_best:
-            save_model(arch_name, args.dataset, state)
-        save_summary(arch_name, args.dataset, summary)
-
-    # calculate time 
-    avg_train_time = train_time / (args.epochs - start_epoch)
-    avg_valid_time = validate_time / (args.epochs - start_epoch)
-    total_train_time = train_time + validate_time
-    print('====> average training time each epoch: {:,}m {:.2f}s'.format(
-        int(avg_train_time//60), avg_train_time%60))
-    print('====> average validation time each epoch: {:,}m {:.2f}s'.format(
-        int(avg_valid_time//60), avg_valid_time%60))
-    print('====> training time: {}h {}m {:.2f}s'.format(
-        int(train_time//3600), int((train_time%3600)//60), train_time%60))
-    print('====> validation time: {}h {}m {:.2f}s'.format(
-        int(validate_time//3600), int((validate_time%3600)//60), validate_time%60))
-    print('====> total training time: {}h {}m {:.2f}s'.format(
-        int(total_train_time//3600), int((total_train_time%3600)//60), total_train_time%60))
-
-    return best_acc1
-
-
-def train(args, train_loader, **kwargs):
+def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
     r"""Train model each epoch
     """
-    epoch = kwargs.get('epoch')
-    model = kwargs.get('model')
-    criterion = kwargs.get('criterion')
-    optimizer = kwargs.get('optimizer')
-
     batch_time = AverageMeter('Time', ':6.3f')
     data_time = AverageMeter('Data', ':6.3f')
     losses = AverageMeter('Loss', ':.4e')
@@ -292,6 +226,17 @@ def train(args, train_loader, **kwargs):
 
         if args.cuda:
             target = target.cuda(non_blocking=True)
+        
+        ##################
+        # for pruning
+        if args.prune and (i+1)%args.prune_freq==0 and (epoch+1)<=args.milestones[1]:
+            target_sparsity = args.prune_rate - args.prune_rate * (1 - (epoch+1)/args.milestones[1])**3
+            if args.prune_type == 'structured':
+                importance = pruning.get_filter_importance(model)
+                pruning.filter_prune(model, importance, target_sparsity * 100)
+            elif args.prune_type == 'unstructured':
+                threshold = pruning.get_weight_threshold(model, target_sparsity * 100)
+                pruning.weight_prune(model, threshold)
 
         # compute output
         output = model(input)
@@ -319,7 +264,6 @@ def train(args, train_loader, **kwargs):
     print('====> Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
           .format(top1=top1, top5=top5))
 
-    # logging at sacred
     ex.log_scalar('train.loss', losses.avg, epoch)
     ex.log_scalar('train.top1', top1.avg.item(), epoch)
     ex.log_scalar('train.top5', top5.avg.item(), epoch)
@@ -373,129 +317,6 @@ def validate(args, val_loader, epoch, model, criterion):
     ex.log_scalar('test.top5', top5.avg.item(), epoch)
 
     return top1.avg, top5.avg
-
-
-def DPF(args, train_loader, **kwargs):
-    epoch = kwargs.get('epoch')
-    fullmodel = kwargs.get('fullmodel')
-    maskmodel = kwargs.get('maskmodel')
-    criterion = kwargs.get('criterion')
-    fulloptimizer = kwargs.get('fulloptimizer')
-    device = kwargs.get('device')
-    
-
-    batch_time = AverageMeter('Time', ':6.3f')
-    data_time = AverageMeter('Data', ':6.3f')
-    losses = AverageMeter('Loss', ':.4e')
-    top1 = AverageMeter('Acc@1', ':6.2f')
-    top5 = AverageMeter('Acc@5', ':6.2f')
-    progress = ProgressMeter(len(train_loader), batch_time, data_time,
-                             losses, top1, top5, prefix="Epoch: [{}]".format(epoch))
-
-
-    fullmodel.train()
-    maskmodel.train()
-    weightcopy(fullmodel, maskmodel)
-
-    end = time.time()
-    for i, (input, target) in enumerate(train_loader):
-        # measure data loading time
-        data_time.update(time.time() - end)
-
-        if args.cuda:
-            target = target.cuda(non_blocking=True)
-
-        # compute output
-        output = fullmodel(input)
-        loss = criterion(output, target)
-        
-        mask_output = maskmodel(input)
-        mask_loss = criterion(mask_output, target)
-
-        # measure accuracy and record loss
-        acc1, acc5 = accuracy(output, target, topk=(1, 5))
-        losses.update(loss.item(), input.size(0))
-        top1.update(acc1[0], input.size(0))
-        top5.update(acc5[0], input.size(0))
-
-        # compute gradient and do SGD step
-        fulloptimizer.zero_grad()
-        maskmodel.zero_grad()
-        mask_loss.backward()
-
-        gradcopy(fullmodel, maskmodel)
-        fulloptimizer.step()
-        weightcopy(fullmodel, maskmodel)
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        
-        if i % args.print_freq == 0:
-            progress.print(i)
-
-        end = time.time()
-
-    print('====> Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
-          .format(top1=top1, top5=top5))
-
-    # logging at sacred
-    ex.log_scalar('dpf.loss', losses.avg, epoch)
-    ex.log_scalar('dpf.top1', top1.avg.item(), epoch)
-    ex.log_scalar('dpf.top5', top5.avg.item(), epoch)
-
-    return top1.avg, top5.avg
-
-def DPFtest(args, val_loader, **kwargs):
-    epoch = kwargs.get('epoch')
-    maskmodel = kwargs.get('maskmodel')
-    criterion = kwargs.get('criterion')
-    device = kwargs.get('device')
-
-    batch_time = AverageMeter('Time', ':6.3f')
-    losses = AverageMeter('Loss', ':.4e')
-    top1 = AverageMeter('Acc@1', ':6.2f')
-    top5 = AverageMeter('Acc@5', ':6.2f')
-    progress = ProgressMeter(len(val_loader), batch_time, losses, top1, top5,
-                             prefix='Test: ')
-
-    # switch to evaluate mode
-    maskmodel.eval()
-
-    with torch.no_grad():
-        end = time.time()
-        for i, (input, target) in enumerate(val_loader):
-            if args.cuda:
-                target = target.cuda(non_blocking=True)
-
-            # compute output
-            output = maskmodel(input)
-            loss = criterion(output, target)
-
-            # measure accuracy and record loss
-            acc1, acc5 = accuracy(output, target, topk=(1, 5))
-            losses.update(loss.item(), input.size(0))
-            top1.update(acc1[0], input.size(0))
-            top5.update(acc5[0], input.size(0))
-
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-
-            if i % args.print_freq == 0:
-                progress.print(i)
-
-            end = time.time()
-
-        print('====> Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
-              .format(top1=top1, top5=top5))
-
-    # logging at sacred
-    ex.log_scalar('dpftest.loss', losses.avg, epoch)
-    ex.log_scalar('dpftest.top1', top1.avg.item(), epoch)
-    ex.log_scalar('dpftest.top5', top5.avg.item(), epoch)
-
-    return top1.avg, top5.avg
-
-
 
 
 if __name__ == '__main__':
