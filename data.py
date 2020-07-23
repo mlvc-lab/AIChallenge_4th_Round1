@@ -295,7 +295,7 @@ def data_split(source, target):
                 # print(str(instance), str(val_path/classname.name/instance.name))
 
 
-def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', cuda=True):
+def DataLoader(batch_size, num_workers, dataset='things', datapath='/dataset/things_v1', cuda=True):
     r"""Dataloader for training/validation
     """
     DataSet = _verify_dataset(dataset)
