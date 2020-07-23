@@ -147,8 +147,13 @@ class RexNetV1(nn.Module):
 def rexnet(data='cifar10', **kwargs):
     width_mult = kwargs.get('width_mult')
     depth_mult = kwargs.get('depth_mult')
-
-    if data in ['cifar10', 'cifar100']:
-        return None
-    elif data =='imagenet':
+    args = kwargs.get('args')
+    classnum = kwargs.get("classnum")
+    if args.transfer:
         return RexNetV1(width_mult=width_mult, depth_mult=depth_mult)
+    else:
+        if data in ['cifar10', 'cifar100', 'things', 'imagenet']:
+            return RexNetV1(width_mult=width_mult, depth_mult=depth_mult, classes=classnum)
+        else:
+            print('wrong dataset name!')
+            exit()

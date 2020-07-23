@@ -52,9 +52,9 @@ def config():
                         help='where you want to load/save your dataset? (default: ../data)')
     parser.add_argument('-j', '--workers', default=8, type=int, metavar='N',
                         help='number of data loading workers (default: 8)')
-    parser.add_argument('--epochs', default=200, type=int, metavar='N',
+    parser.add_argument('--epochs', default=500, type=int, metavar='N',
                         help='number of total epochs to run (default: 200)')
-    parser.add_argument('-b', '--batch-size', default=32, type=int, metavar='N',
+    parser.add_argument('-b', '--batch-size', default=256, type=int, metavar='N',
                         help='mini-batch size (default: 256), this is the total '
                              'batch size of all GPUs on the current node when '
                              'using Data Parallel')
@@ -64,7 +64,7 @@ def config():
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                         help='momentum (default: 0.9)')
     parser.add_argument('--wd', '--weight-decay', dest='weight_decay',
-                        default=5e-4, type=float,
+                        default=1e-4, type=float,
                         help='weight decay (default: 5e-4)')
     parser.add_argument('--nest', '--nesterov', dest='nesterov', action='store_true',
                         help='use nesterov momentum?')
@@ -91,7 +91,7 @@ def config():
                         help='test model?')
     parser.add_argument('-C', '--cuda', dest='cuda', action='store_true',
                         help='use cuda?')
-    parser.add_argument('-g', '--gpuids', metavar='GPU', default=[0],
+    parser.add_argument('-g', '--gpuids', metavar='GPU', default=[0,1,2,3],
                         type=int, nargs='+',
                         help='GPU IDs for using (default: 0)')
     parser.add_argument('--efficient-type', default=0, type=int, help="select efficient type (0 : b0, 1 : b1, 2 : b2 ...)")
@@ -103,9 +103,9 @@ def config():
     parser.add_argument('--image-size', default=224, type=int, help="input image size")
 
     # for Cut-Mix
-    parser.add_argument('--beta', default=0, type=float,
+    parser.add_argument('--beta', default=1., type=float,
                         help='hyperparameter beta')
-    parser.add_argument('--cutmix_prob', default=0, type=float,
+    parser.add_argument('--cutmix_prob', default=1., type=float,
                         help='cutmix probability')
 
     cfg = parser.parse_args()

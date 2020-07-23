@@ -386,6 +386,9 @@ class EfficientNet(nn.Module):
 
 def efficientnet(data='cifar10', **kwargs):
     efficient_type = kwargs.get('efficient_type')
+    args = kwargs.get('args')
+    classnum = kwargs.get('classnum')
+
     efficient_arr = ['efficientnet-b0', 'efficientnet-b1', 'efficientnet-b2','efficientnet-b3', 'efficientnet-b4', 
     'efficientnet-b5', 'efficientnet-b6','efficientnet-b7']
 
@@ -394,9 +397,12 @@ def efficientnet(data='cifar10', **kwargs):
         exit()
 
     efficient_type = efficient_arr[efficient_type]
- 
 
-    if data in ['cifar10', 'cifar100']:
-        return None
-    elif data =='imagenet':
+    if args.transfer:
         return EfficientNet.from_name(efficient_type)
+    else:
+        if data in ['cifar10', 'cifar100', 'things', 'imagenet']:
+            return EfficientNet.from_name(efficient_type, num_classes=classnum)
+        else:
+            print('wrong dataset name!')
+            exit()

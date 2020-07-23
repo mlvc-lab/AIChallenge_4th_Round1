@@ -40,13 +40,14 @@ def load_model(model, ckpt_file, main_gpu, use_cuda: bool=True):
     return checkpoint
 
 
-def save_model(arch_name, dataset, state):
+def save_model(arch_name, dataset, state, timestring):
     r"""Save the model (checkpoint) at the training time
     """
     dir_ckpt = pathlib.Path('checkpoint')
     dir_path = dir_ckpt / arch_name / dataset
     dir_path.mkdir(parents=True, exist_ok=True)
-
+    dir_path = dir_path / timestring
+    dir_path.mkdir(parents=True, exist_ok=True)
     model_file = dir_path / 'ckpt_best.pth'
     torch.save(state, model_file)
 
@@ -197,10 +198,10 @@ def set_arch_name(args):
 
 
 def get_imagenet_checkpoint(args):
-    ckpt_path = {"rexnet-1.0": "checkpoint/rexnet/imagenet/rexnetv1_1.0x.pth", 
-               "rexnet-1.3": "checkpoint/rexnet/imagenet/rexnetv1_1.3x.pth", 
-               "rexnet-1.5": "checkpoint/rexnet/imagenet/rexnetv1_1.5x.pth",
-               "rexnet-2.0": "checkpoint/rexnet/imagenet/rexnetv1_2.0x.pth",
+    ckpt_path = {"rexnet-1.0": "checkpoint/rexnet/imagenet/rexnet-1.0.pth", 
+               "rexnet-1.3": "checkpoint/rexnet/imagenet/rexnet-1.3.pth", 
+               "rexnet-1.5": "checkpoint/rexnet/imagenet/rexnet-1.5.pth",
+               "rexnet-2.0": "checkpoint/rexnet/imagenet/rexnet-2.0.pth",
                "resnet18": "checkpoint/resnet/imagenet/resnet18.pth",
                "resnet34": "checkpoint/resnet/imagenet/resnet34.pth",
                "resnet50": "checkpoint/resnet/imagenet/resnet50.pth",
@@ -213,14 +214,14 @@ def get_imagenet_checkpoint(args):
                "efficientnet-b5": "checkpoint/efficientnet/imagenet/efficientnet-b5.pth",
                "efficientnet-b6": "checkpoint/efficientnet/imagenet/efficientnet-b6.pth",
                "efficientnet-b7": "checkpoint/efficientnet/imagenet/efficientnet-b7.pth",
-               "mobilenetv2": "checkpint/mobilenetv2/imagenet/mobilenetv2.pth"
+               "mobilenetv2": "checkpoint/mobilenetv2/imagenet/mobilenetv2.pth"
 }
 
     if args.arch == 'rexnet':
-        if args.depth != 1.0:
+        if args.depth_mult != 1.0:
             print("wrong input depth")
             exit()
-        return ckpt_path['rexnet-{}'.format(args.width)]
+        return ckpt_path['rexnet-{}'.format(args.width_mult)]
 
     elif args.arch == 'resnet':
         return ckpt_path['resnet{}'.format(args.layers)]

@@ -317,16 +317,30 @@ def resnet(data='cifar10', **kwargs):
         data (str): the name of datasets
     """
     num_layers = str(kwargs.get('num_layers'))
-    if data in ['cifar10', 'cifar100']:
-        if num_layers in cfgs_cifar.keys():
-            return ResNet_CIFAR(BasicBlock, cfgs_cifar[num_layers], int(data[5:]))
-        else:
-            return None
-    elif data == 'imagenet':
+    args = kwargs.get('args')
+    classnum = kwargs.get('classnum')
+
+    if args.transfer:
         if num_layers in cfgs.keys():
             block, layers = cfgs[num_layers]
-            return ResNet(block, layers, 1000)
+            return ResNet(block)
         else:
-            return None
+            print("no resnet model have {} layers".format(num_layers))
+            exit()
     else:
-        return None
+        if data in ['cifar10', 'cifar100']:
+            if num_layers in cfgs_cifar.keys():
+                return ResNet_CIFAR(BasicBlock, cfgs_cifar[num_layers], classnum)
+            else:
+                print("no resnet model have {} layers".format(num_layers))
+                exit()
+        elif data in ['things', 'imagenet']:
+            if num_layers in cfgs.keys():
+                block, layers = cfgs[num_layers]
+                return ResNet(block, layers, classnum)
+            else:
+                print("no resnet model have {} layers".format(num_layers))
+                exit()
+        else:
+            print('wrong dataset name!')
+            exit()

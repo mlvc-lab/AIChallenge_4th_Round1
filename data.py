@@ -165,8 +165,7 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
                                     std=[0.2087, 0.1992, 0.1988])
 
     transform = transforms.Compose([
-        transforms.RandomResizedCrop (image_size + 32),         #crop을 한다음 Resize
-        transforms.CenterCrop(image_size),
+        transforms.RandomResizedCrop(image_size),         #crop을 한다음 Resize
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         normalize,
@@ -319,18 +318,18 @@ def get_params(dataloader):
     return mean, std
 
 
-def DataLoader(batch_size, image_size, num_workers, dataset='cifar10', datapath='../data', cuda=True):
+def DataLoader(batch_size, image_size, num_workers, dataset='cifar10', cuda=True):
     r"""Dataloader for training/validation
     """
     DataSet = _verify_dataset(dataset)
     if DataSet == 'cifar10':
-        return cifar10_loader(batch_size, num_workers, datapath, cuda)
+        return cifar10_loader(batch_size, num_workers,"/dataset/CIFAR/cifar-10-batches-py", cuda)
     elif DataSet == 'cifar100':
-        return cifar100_loader(batch_size, num_workers, datapath, cuda)
+        return cifar100_loader(batch_size, num_workers,"/dataset/CIFAR/cifar-100-python", cuda)
     elif DataSet == 'imagenet':
-        return imagenet_loader(batch_size, image_size, num_workers, datapath, cuda)
+        return imagenet_loader(batch_size, image_size, num_workers,"/dataset/ImageNet", cuda)
     elif DataSet == 'things':
-        return things_loader(batch_size, image_size, num_workers, datapath, cuda)
+        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v1", cuda)
 
 
 if __name__ == '__main__':

@@ -62,7 +62,7 @@ if __name__ == '__main__':
     efficient_name = ['efficientnet-b0.pth', 'efficientnet-b1.pth','efficientnet-b2.pth',
                         'efficientnet-b3.pth','efficientnet-b4.pth','efficientnet-b5.pth',
                         'efficientnet-b6.pth','efficientnet-b7.pth']
-    rexnet_name = ['rexnet-1.0', 'rexnet-1.3', 'rexnet-1.5', 'rexnet-2.0']
+    rexnet_name = ['rexnet-1.0.pth', 'rexnet-1.3.pth', 'rexnet-1.5.pth', 'rexnet-2.0.pth']
     mobilenetv2_name = ['mobilenetv2.pth']    
 
     if args.arch == 'resnet':
