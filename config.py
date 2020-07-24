@@ -135,12 +135,14 @@ def config():
     parser.add_argument('--tch-arch', default='wideresnet', type=str,
                         help='choose pre-trained teacher')
     parser.add_argument('--tch-layers', default=56, type=int, metavar='N',
-                        help='number of layers in ResNet (default: 56)')    # resnet, wideresnet, resnext
+                        help='number of layers in ResNet (default: 56)')    # resnet, wideresnet
     parser.add_argument('--tch-width-mult', default=1.0, type=float, metavar='WM',
                         help='width multiplier to thin a network '
-                             'uniformly at each layer (default: 1.0)')      # resnet, mobilenet
-    parser.add_argument('--tch-width-factor', default=4 , type=int,
-                        help='wide factor for wideresnet')                  # wideresnet
+                             'uniformly at each layer (default: 1.0)')      # wideresnet, mobilenet
+    # teacher load
+    parser.add_argument('--tch-load', default=None, type=str, metavar='FILE.pth',
+                        help='name of checkpoint for teacher model (default: None)')
+
 
     cfg = parser.parse_args()
     return cfg

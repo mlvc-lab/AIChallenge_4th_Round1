@@ -11,6 +11,7 @@ import models
 import config
 import pruning
 import quantization
+import distillation
 from utils import *
 from data import DataLoader
 
@@ -60,11 +61,28 @@ def main(args):
         model = quantization.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
                                                         width_mult=args.width_mult, qnn=quantizer.qnn,
                                                         qcfg=quantizer.__dict__[args.quant_cfg])
+    if args.distill: # for distillation
+        teacher_name = args.tch_arch
+        distiller = distillation.losses.__dict__[args.dist_type]
+        teacher = models.__dict__[args.tch_arch](data=args.dataset, num_layers=args.tch_layers,
+                                                 width_mult=args.tch_width_mult)
     
     if model is None:
         print('==> unavailable model parameters!! exit...\n')
         exit()
 
+    # for distillation
+    if args.distill:
+        if teacher is None:
+            print('==> unavailable model parameters!! exit...\n')
+            exit()
+        t_num_parameters = round((sum(l.nelement() for l in teacher.parameters()) / 1e+6), 3)
+        s_num_parameters = round((sum(l.nelement() for l in model.parameters()) / 1e+6), 3)
+        print("teacher name : ", teacher_name)
+        print("teacher parameters : ", t_num_parameters, "M")
+        print("student name : ", student_name)
+        print("student parameters : ", s_num_parameters, "M")
+        
     # set criterion and optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=args.lr,
@@ -81,6 +99,13 @@ def main(args):
         model = nn.DataParallel(model, device_ids=args.gpuids,
                                 output_device=args.gpuids[0])
         cudnn.benchmark = True
+        
+        # for distillation
+        if args.distill:
+            with torch.cuda.device(args.gpuids[0]):
+                teacher = teacher.cuda()
+            teahcer = nn.DataParallel(teacher, device_ids=args.gpuids,
+                                      output_device=args.gpuids[0])
 
     # Dataset loading
     print('==> Load data..')
@@ -105,6 +130,15 @@ def main(args):
         checkpoint = load_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
         print('==> Loaded Checkpoint \'{}\''.format(args.load))
     
+    # for distillation
+    if args.distill:
+        assert args.tch_load is not None
+        tch_ckpt_file = pathlib.Path('checkpoint') / teacher_name / args.dataset / args.tch_load
+        assert isfile(tch_ckpt_file), '==> no checkpoint found \"{}\"'.format(args.tch_load)
+
+        print('==> Loading Teacher Checkpoint \'{}\''.format(args.load))
+        tch_checkpoint = load_model(teacher, tch_ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda)
+        print('==> Loaded Teacher Checkpoint \'{}\''.format(args.load))
 
     # for training
     if args.run_type == 'train':
@@ -234,7 +268,14 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
     # switch to train mode
     model.train()
 
+    # for distillation
+    if args.distill:
+        dist_losses = AverageMeter('DistLoss', ':.4e')
+        # teacher.eval()
+        teacher.eval()
+
     end = time.time()
+    #with torch.autograd.set_detect_anomaly(True):
     for i, (input, target) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
@@ -242,16 +283,26 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
         if args.cuda:
             target = target.cuda(non_blocking=True)
 
-        # compute output
-        output = model(input)
-        loss = criterion(output, target)
+        # compute output and calculate loss
+        if not args.distill:
+            output = model(input)
+            loss = criterion(output, target)
+        elif args.distill:  # for distillation
+            s_output, s_features = model(input)
+            t_output, t_features = teacher(input)
+            loss = criterion(s_output, target)
+            loss, dist_loss = distiller(loss, s_output, t_output, s_features, t_features)
+            dist_losses.update(dist_loss.item(), input.size(0))
 
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
         losses.update(loss.item(), input.size(0))
         top1.update(acc1[0], input.size(0))
         top5.update(acc5[0], input.size(0))
-
+        # for distillation
+        if args.distill:
+            dist_losses.update(dist_loss.item(), input.size(0))
+        
         # compute gradient and do SGD step
         optimizer.zero_grad()
         loss.backward()
@@ -271,6 +322,9 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
     ex.log_scalar('train.loss', losses.avg, epoch)
     ex.log_scalar('train.top1', top1.avg.item(), epoch)
     ex.log_scalar('train.top5', top5.avg.item(), epoch)
+    # for distillation
+    if args.distill:
+        ex.log_scalar('train.dist_loss', dist_losses.avg, epoch)
 
     return top1.avg, top5.avg
 
