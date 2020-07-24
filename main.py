@@ -147,23 +147,14 @@ def main(args):
         best_acc1 = 0.0
         train_time = 0.0
         validate_time = 0.0
+        global iterations
+        iterations = 0
 
         for epoch in range(start_epoch, args.epochs):
             print('\n==> {}/{} training'.format(
                     arch_name, args.dataset))
             print('==> Epoch: {}, lr = {}'.format(
                 epoch, optimizer.param_groups[0]["lr"]))
-
-            # for pruning
-            if args.prune:
-                if (epoch+1) % args.prune_freq==0 and (epoch+1) <= args.milestones[1]:
-                    target_sparsity = args.prune_rate - args.prune_rate * (1 - (epoch+1)/args.milestones[1])**3
-                    if args.prune_type == 'structured':
-                        importance = pruning.get_filter_importance(model)
-                        pruning.filter_prune(model, importance, target_sparsity * 100)
-                    elif args.prune_type == 'unstructured':
-                        threshold = pruning.get_weight_threshold(model, target_sparsity * 100)
-                        pruning.weight_prune(model, threshold)
 
             # train for one epoch
             print('===> [ Training ]')
@@ -283,6 +274,17 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
         if args.cuda:
             target = target.cuda(non_blocking=True)
 
+        # for pruning
+        if args.prune:
+            if (iterations+1) % args.prune_freq==0 and (epoch+1) <= args.milestones[1]:
+                target_sparsity = args.prune_rate - args.prune_rate * (1 - (epoch+1)/args.milestones[1])**3
+                if args.prune_type == 'structured':
+                    importance = pruning.get_filter_importance(model)
+                    pruning.filter_prune(model, importance, target_sparsity * 100)
+                elif args.prune_type == 'unstructured':
+                    threshold = pruning.get_weight_threshold(model, target_sparsity * 100)
+                    pruning.weight_prune(model, threshold)
+
         # compute output and calculate loss
         if not args.distill:
             output = model(input)
@@ -315,6 +317,9 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
             progress.print(i)
 
         end = time.time()
+
+        # end of one mini-batch
+        iterations += 1
 
     print('====> Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
           .format(top1=top1, top5=top5))

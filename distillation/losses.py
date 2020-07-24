@@ -7,6 +7,45 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+
+def attention(x):
+    return F.normalize(x.pow(2).mean(1).view(x.size(0), -1))
+
+
+def attention_loss(t, s):
+    return (attention(t) - attention(s)).pow(2).mean()
+
+
+def pdist(e, squared=False, eps=1e-12):
+    e_square = e.pow(2).sum(dim=1)
+    prod = e @ e.t()
+    res = (e_square.unsqueeze(1) + e_square.unsqueeze(0) - 2 * prod).clamp(min=eps)
+
+    if not squared:
+        res = res.sqrt()
+
+    res = res.clone()
+    res[range(len(e)), range(len(e))] = 0
+    return res
+
+
+def similarity_preserve_loss(t, s):
+    bsz = s.size()[0]
+    f_s = s.view(bsz, -1)
+    f_t = t.view(bsz, -1)
+
+    G_s = torch.mm(f_s, torch.t(f_s))
+    # G_s = G_s / G_s.norm(2)
+    G_s = torch.nn.functional.normalize(G_s)
+    G_t = torch.mm(f_t, torch.t(f_t))
+    # G_t = G_t / G_t.norm(2)
+    G_t = torch.nn.functional.normalize(G_t)
+
+    G_diff = G_t - G_s
+    loss = (G_diff * G_diff).view(-1, 1).sum(0) / (bsz * bsz)
+    return loss
+
+    
 class KD:
     def __init__(self):
         return
