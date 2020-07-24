@@ -107,7 +107,6 @@ class Wide_ResNet_Cifar(nn.Module):
     def __init__(self, block, layers, width_mult=1, num_classes=10, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
                  norm_layer=None):
-    def __init__(self, block, layers, wfactor, num_classes=0):
         super(Wide_ResNet_Cifar, self).__init__()
         self.block_name = str(block.__name__)
         if norm_layer is None:
@@ -129,10 +128,10 @@ class Wide_ResNet_Cifar(nn.Module):
         self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
-        self.layer1 = self._make_layer(block, 16, layers[0])
-        self.layer2 = self._make_layer(block, 32, layers[1], stride=2,
+        self.layer1 = self._make_layer(block, 16 * width_mult, layers[0])
+        self.layer2 = self._make_layer(block, 32 * width_mult, layers[1], stride=2,
                                        dilate=replace_stride_with_dilation[0])
-        self.layer3 = self._make_layer(block, 64, layers[2], stride=2,
+        self.layer3 = self._make_layer(block, 64 * width_mult, layers[2], stride=2,
                                        dilate=replace_stride_with_dilation[1])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(64 * block.expansion * width_mult, num_classes)
@@ -238,14 +237,14 @@ def wideresnet(data='cifar10', **kwargs):
     Args:
         data (str): the name of datasets
     """
-    num_layers = str(kwargs.get('num_layers'))
-    width_mult = kwargs.get('width_mult')
+    num_layers = kwargs.get('num_layers')
+    width_mult = int(kwargs.get('width_mult'))
         
     if data in ['cifar10', 'cifar100']:
         assert (num_layers - 4) % 6 == 0
         n = int((num_layers - 4) / 6)
         layers = [n, n, n]
-        return Wide_ResNet_Cifar(BasicBlock, layers=layers, width_mult=args.width_mult, num_classes=int(data[5:]))
+        return Wide_ResNet_Cifar(BasicBlock, layers=layers, width_mult=width_mult, num_classes=int(data[5:]))
     elif data == 'imagenet':
         return None
     else:

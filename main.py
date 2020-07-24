@@ -24,7 +24,7 @@ from sacred import Experiment
 from sacred.observers import MongoObserver
 
 # sacred experiment
-ex = Experiment('AI-Challenge_Test')
+ex = Experiment('AI-Challenge')
 ex.observers.append(MongoObserver.create(url=config.MONGO_URI,
                                          db_name=config.MONGO_DB))
 
@@ -62,7 +62,7 @@ def main(args):
                                                         width_mult=args.width_mult, qnn=quantizer.qnn,
                                                         qcfg=quantizer.__dict__[args.quant_cfg])
     if args.distill: # for distillation
-        teacher_name = set_arch_name_args(args.tch_arch, args.tch_layers, args.width_mult)
+        teacher_name = set_arch_tch_name(args)
         distiller = distillation.losses.__dict__[args.dist_type]
         teacher = models.__dict__[args.tch_arch](data=args.dataset, num_layers=args.tch_layers,
                                                  width_mult=args.tch_width_mult)
@@ -144,11 +144,11 @@ def main(args):
     if args.run_type == 'train':
         # init parameters
         start_epoch = 0
+        global iterations
+        iterations = 0
         best_acc1 = 0.0
         train_time = 0.0
         validate_time = 0.0
-        global iterations
-        iterations = 0
 
         for epoch in range(start_epoch, args.epochs):
             print('\n==> {}/{} training'.format(
@@ -174,7 +174,7 @@ def main(args):
                 epoch=epoch, model=model, criterion=criterion)
             elapsed_time = time.time() - start_time
             validate_time += elapsed_time
-            print('====> {:.2f} seconds to validate this epoch\n'.format(
+            print('====> {:.2f} seconds to validate this epoch'.format(
                 elapsed_time))
         
             # learning rate schduling
@@ -198,7 +198,7 @@ def main(args):
             # for pruning
             if args.prune:
                 num_total, num_zero, sparsity = pruning.cal_sparsity(model)
-                print('====> sparsity: {:.2f}% || num_zero/num_total: {}/{}'.format(sparsity, num_zero, num_total))
+                print('\n====> sparsity: {:.2f}% || num_zero/num_total: {}/{}'.format(sparsity, num_zero, num_total))
                 # logging at sacred
                 ex.log_scalar('sparsity', sparsity, epoch)
 
@@ -258,7 +258,7 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
 
     # switch to train mode
     model.train()
-
+    
     # for distillation
     if args.distill:
         dist_losses = AverageMeter('DistLoss', ':.4e')
@@ -276,7 +276,7 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
 
         # for pruning
         if args.prune:
-            if (iterations+1) % args.prune_freq==0 and (epoch+1) <= args.milestones[1]:
+            if (globals()['iterations']+1) % args.prune_freq==0 and (epoch+1) <= args.milestones[1]:
                 target_sparsity = args.prune_rate - args.prune_rate * (1 - (epoch+1)/args.milestones[1])**3
                 if args.prune_type == 'structured':
                     importance = pruning.get_filter_importance(model)
@@ -319,7 +319,7 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
         end = time.time()
 
         # end of one mini-batch
-        iterations += 1
+        globals()['iterations'] += 1
 
     print('====> Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
           .format(top1=top1, top5=top5))

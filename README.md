@@ -161,6 +161,14 @@ python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3 -E --ckpt ckpt_best.
 
 This example shows the whole training process to compress the model through pruning, quantization, and distillation.
 
+## 0. train a teacher (larger than baseline model)
+
+train the baseline.
+
+```shell
+python main.py cifar100 -a wideresnet --layers 40 --width-mult 4 -C -g 0 --load base.pth --save temp.pth --lr 0.0000001
+```
+
 ## 1. train baseline
 
 train the baseline.

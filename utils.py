@@ -194,16 +194,19 @@ def set_arch_name(args):
     arch_name = deepcopy(args.arch)
     if args.arch in ['resnet']:
         arch_name += str(args.layers)
+    elif args.arch in ['wideresnet']:
+        arch_name += '{}_{}'.format(args.layers, int(args.width_mult))
 
     return arch_name
 
-def set_arch_name_args(arch, num_layers, width_mult):
+
+def set_arch_tch_name(args):
     r"""Set architecture name
     """
-    arch_name = deepcopy(arch)
-    if arch in ['resnet']:
-        arch_name += str(num_layers)
-    elif arch in ['wideresnet']:
-        arch_name += '{}_{}'.format(num_layers, width_mult)
+    arch_tch_name = deepcopy(args.tch_arch)
+    if args.tch_arch in ['resnet']:
+        arch_tch_name += str(args.tch_layers)
+    elif args.tch_arch in ['wideresnet']:
+        arch_tch_name += '{}_{}'.format(args.tch_layers, int(args.tch_width_mult))
 
-    return arch_name
+    return arch_tch_name
