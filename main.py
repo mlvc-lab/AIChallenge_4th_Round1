@@ -49,11 +49,11 @@ def main(args):
 
     if not args.prune:  # base
         model = models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
-                                           width_mult=args.width_mult)
+                                           width_mult=args.width_mult, efficient_type=args.efficient_type)
     elif args.prune:    # for pruning
         pruner = pruning.__dict__[args.pruner]
         model = pruning.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
-                                           width_mult=args.width_mult, mnn=pruner.mnn)
+                                           width_mult=args.width_mult, efficient_type=args.efficient_type, mnn=pruner.mnn)
 
     if model is None:
         print('==> unavailable model parameters!! exit...\n')
@@ -235,8 +235,8 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
                 importance = pruning.get_filter_importance(model)
                 pruning.filter_prune(model, importance, target_sparsity * 100)
             elif args.prune_type == 'unstructured':
-                threshold = pruning.get_weight_threshold(model, target_sparsity * 100)
-                pruning.weight_prune(model, threshold)
+                threshold = pruning.get_weight_threshold(model, target_sparsity * 100, args)
+                pruning.weight_prune(model, threshold, args)
 
         # compute output
         output = model(input)

@@ -48,6 +48,7 @@ def config():
     parser.add_argument('--width-mult', default=1.0, type=float, metavar='WM',
                         help='width multiplier to thin a network '
                              'uniformly at each layer (default: 1.0)')
+    parser.add_argument('--efficient-type', default=0, type=int, help="select efficient type (0 : b0, 1 : b1, 2 : b2 ...)")
     # for dataset
     parser.add_argument('--datapath', default='/dataset/CIFAR', type=str, metavar='PATH',
                         help='where you want to load/save your dataset? (default: ../data)')
@@ -113,6 +114,8 @@ def config():
                          help='update frequency')
     parser.add_argument('--prune-rate', dest='prune_rate', default=0.5, type=float,
                          help='pruning rate') 
+    parser.add_argument('--prune-imp', dest='prune_imp', default='L1', type=str,
+                         help='Importance Method : L1, L2, grad, syn')
     
     cfg = parser.parse_args()
     return cfg

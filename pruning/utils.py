@@ -6,13 +6,21 @@ import numpy as np
 import time, os, math
 
 
-def get_weight_threshold(model, rate):
+def get_weight_threshold(model, rate, args):
     importance_all = None
     for name, item in model.module.named_parameters():
         if len(item.size())==4 and 'mask' not in name:
             weights = item.data.view(-1).cpu()
-            #importance = weights.pow(2).numpy()
-            importance = weights.abs().numpy()
+            grads = item.grad.data.view(-1).cpu()
+            if args.prune_imp == 'L1':
+                importance = weights.abs().numpy()
+            elif args.prune_imp == 'L2':
+                importance = weights.pow(2).numpy()
+            elif args.prune_imp == 'grad':
+                importance = grads.abs().numpy()
+            elif args.prune_imp == 'syn':
+                importance = (weights * grads).abs().numpy()
+            
 
             if importance_all is None:
                 importance_all = importance
@@ -23,12 +31,20 @@ def get_weight_threshold(model, rate):
     return threshold
 
 
-def weight_prune(model, threshold):
+def weight_prune(model, threshold, args):
     state = model.state_dict()
     for name, item in model.named_parameters():
         if len(item.size())==4 and 'mask' not in name:
             key = name.replace('weight', 'mask')
-            state[key].data.copy_(torch.gt(item.data.abs(), threshold).float())
+            if args.prune_imp == 'L1':
+                mat = item.data.abs()
+            elif args.prune_imp == 'L2':
+                mat = item.data.pow(2)
+            elif args.prune_imp == 'grad':
+                mat = item.grad.data.abs()
+            elif args.prune_imp == 'syn':
+                mat = (item.data * item.grad.data).abs()
+            state[key].data.copy_(torch.gt(mat, threshold).float())
 
 
 def get_filter_importance(model):
