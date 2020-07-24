@@ -52,7 +52,7 @@ def config():
                         help='where you want to load/save your dataset? (default: ../data)')
     parser.add_argument('-j', '--workers', default=8, type=int, metavar='N',
                         help='number of data loading workers (default: 8)')
-    parser.add_argument('--epochs', default=500, type=int, metavar='N',
+    parser.add_argument('--epochs', default=200, type=int, metavar='N',
                         help='number of total epochs to run (default: 200)')
     parser.add_argument('-b', '--batch-size', default=256, type=int, metavar='N',
                         help='mini-batch size (default: 256), this is the total '
@@ -64,12 +64,12 @@ def config():
     parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                         help='momentum (default: 0.9)')
     parser.add_argument('--wd', '--weight-decay', dest='weight_decay',
-                        default=1e-4, type=float,
+                        default=5e-4, type=float,
                         help='weight decay (default: 5e-4)')
     parser.add_argument('--nest', '--nesterov', dest='nesterov', action='store_true',
                         help='use nesterov momentum?')
     parser.add_argument('--sched', '--scheduler', dest='scheduler', metavar='TYPE',
-                        default='cosine', type=str, choices=schedule_types,
+                        default='multistep', type=str, choices=schedule_types,
                         help='scheduler: ' +
                              ' | '.join(schedule_types) +
                              ' (default: cosine)')
@@ -78,7 +78,7 @@ def config():
                         help='period of learning rate decay / '
                              'maximum number of iterations for '
                              'cosine annealing scheduler (default: 30)')
-    parser.add_argument('--milestones', metavar='EPOCH', default=[30,80], type=int, nargs='+',
+    parser.add_argument('--milestones', metavar='EPOCH', default=[60,120,180], type=int, nargs='+',
                         help='list of epoch indices for multi step scheduler '
                              '(must be increasing) (default: 30 80)')
     parser.add_argument('--gamma', default=0.1, type=float,

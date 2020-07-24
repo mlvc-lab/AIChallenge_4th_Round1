@@ -168,7 +168,6 @@ def set_scheduler(optimizer, args):
 
     return scheduler
 
-
 def accuracy(output, target, topk=(1,)):
     r"""Computes the accuracy over the $k$ top predictions for the specified values of k
     """

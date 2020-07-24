@@ -25,7 +25,7 @@ from sacred import Experiment
 from sacred.observers import MongoObserver
 
 # sacred experiment
-ex = Experiment('RexNet-AdamP')
+ex = Experiment('AI_Challenge_Baseline')
 ex.observers.append(MongoObserver.create(url=config.MONGO_URI,
                                          db_name=config.MONGO_DB))
 
@@ -96,8 +96,6 @@ def main(args):
     else:
         ckpt_dir = None
         ckpt_file = None
-
-
 
     # for evaluation
     if args.evaluate:
