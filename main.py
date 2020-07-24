@@ -62,7 +62,7 @@ def main(args):
                                                         width_mult=args.width_mult, qnn=quantizer.qnn,
                                                         qcfg=quantizer.__dict__[args.quant_cfg])
     if args.distill: # for distillation
-        teacher_name = args.tch_arch
+        teacher_name = set_arch_name_args(args.tch_arch, args.tch_layers, args.width_mult)
         distiller = distillation.losses.__dict__[args.dist_type]
         teacher = models.__dict__[args.tch_arch](data=args.dataset, num_layers=args.tch_layers,
                                                  width_mult=args.tch_width_mult)

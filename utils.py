@@ -196,3 +196,14 @@ def set_arch_name(args):
         arch_name += str(args.layers)
 
     return arch_name
+
+def set_arch_name_args(arch, num_layers, width_mult):
+    r"""Set architecture name
+    """
+    arch_name = deepcopy(arch)
+    if arch in ['resnet']:
+        arch_name += str(num_layers)
+    elif arch in ['wideresnet']:
+        arch_name += '{}_{}'.format(num_layers, width_mult)
+
+    return arch_name
