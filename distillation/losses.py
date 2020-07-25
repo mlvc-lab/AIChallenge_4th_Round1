@@ -6,14 +6,80 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+    
+class KD:
+    def __init__(self):
+        self.alpha = 0.9
+        self.T = 4
+
+    def add_dist_loss(self, ce_loss, **kwargs):
+        # get arguments
+        s_output = kwargs.get('s_output')
+        t_output = kwargs.get('t_output')
+        
+        # calculate KD loss
+        # kd_loss = F.kl_div(F.log_softmax(s_output/T, dim=1), F.softmax(t_output/T, dim=1), size_average=False) * (T**2) / int(s_output.size()[0])
+        kd_loss = F.kl_div(F.log_softmax(s_output / self.T, dim=1), F.softmax(t_output / self.T, dim=1), reduction='batchmean') * (self.T ** 2)
+
+        return self.alpha * kd_loss + (1. - self.alpha) * ce_loss
 
 
-def attention(x):
-    return F.normalize(x.pow(2).mean(1).view(x.size(0), -1))
+class AT:
+    def __init__(self):
+        self.beta = 1e+3
+
+    def attention(self, x):
+        return F.normalize(x.pow(2).mean(1).view(x.size(0), -1))
+
+    def attention_loss(self, t_feature, s_feature):
+        return (self.attention(t_feature) - self.attention(s_feature)).pow(2).mean()
+
+    def add_dist_loss(self, ce_loss, **kwargs):
+        # get arguments
+        s_output = kwargs.get('s_output')
+        t_output = kwargs.get('t_output')
+        s_features = kwargs.get('s_features')
+        t_features = kwargs.get('t_features')
+
+        # calculate AT loss
+        att_loss = 0
+        for i in range(len(s_features)):
+            att_loss += self.attention_loss(t_features[i].detach(), s_features[i])
+        
+        return ce_loss + (self.beta / 2) * att_loss
 
 
-def attention_loss(t, s):
-    return (attention(t) - attention(s)).pow(2).mean()
+class SP:
+    def __init__(self):
+        self.gamma = 3e+3
+
+    def similarity_preserve_loss(self, t_feature, s_feature):
+        bsz = s_feature.size()[0]
+        f_s = s_feature.view(bsz, -1)
+        f_t = t_feature.view(bsz, -1)
+
+        G_s = torch.mm(f_s, torch.t(f_s))
+        # G_s = G_s / G_s.norm(2)
+        G_s = torch.nn.functional.normalize(G_s)
+        G_t = torch.mm(f_t, torch.t(f_t))
+        # G_t = G_t / G_t.norm(2)
+        G_t = torch.nn.functional.normalize(G_t)
+
+        G_diff = G_t - G_s
+        loss = (G_diff * G_diff).view(-1, 1).sum(0) / (bsz * bsz)
+        return loss
+
+    def add_dist_loss(self, ce_loss, **kwargs):
+        # get arguments
+        s_output = kwargs.get('s_output')
+        t_output = kwargs.get('t_output')
+        s_features = kwargs.get('s_features')
+        t_features = kwargs.get('t_features')
+        
+        # calculate SP loss
+        sp_loss = self.similarity_preserve_loss(t_features[-1].detach(), s_features[-1])
+        
+        return ce_loss + self.gamma * sp_loss
 
 
 def pdist(e, squared=False, eps=1e-12):
@@ -27,65 +93,3 @@ def pdist(e, squared=False, eps=1e-12):
     res = res.clone()
     res[range(len(e)), range(len(e))] = 0
     return res
-
-
-def similarity_preserve_loss(t, s):
-    bsz = s.size()[0]
-    f_s = s.view(bsz, -1)
-    f_t = t.view(bsz, -1)
-
-    G_s = torch.mm(f_s, torch.t(f_s))
-    # G_s = G_s / G_s.norm(2)
-    G_s = torch.nn.functional.normalize(G_s)
-    G_t = torch.mm(f_t, torch.t(f_t))
-    # G_t = G_t / G_t.norm(2)
-    G_t = torch.nn.functional.normalize(G_t)
-
-    G_diff = G_t - G_s
-    loss = (G_diff * G_diff).view(-1, 1).sum(0) / (bsz * bsz)
-    return loss
-
-    
-class KD:
-    def __init__(self):
-        return
-
-    def criterion(loss, s_output, t_output, s_features, t_features):
-        alpha = 0.9
-        T = 4
-        # kd_loss = F.kl_div(F.log_softmax(s_output/T, dim=1), F.softmax(t_output/T, dim=1), size_average=False) * (T**2) / int(s_output.size()[0])
-        kd_loss = F.kl_div(F.log_softmax(s_output / T, dim=1), F.softmax(t_output / T, dim=1), reduction='batchmean') * (T ** 2)
-        loss = alpha * kd_loss + (1. - alpha) * ce_loss
-        return loss, kd_loss
-
-
-class AT:
-    def __init__(self):
-        return
-
-    def criterion(loss, s_output, t_output, s_features, t_features):
-        beta = 1e+3
-        att_loss = 0
-        t_output, t_middle_output = teacher(input, type=args.distype)
-        s_output, s_middle_output = student(input, type=args.distype)
-        for k in range(len(t_middle_output)):
-            att_loss += attention_loss(t_middle_output[k].detach(), s_middle_output[k])
-        ce_loss = criterion(s_output, target)
-        loss = ce_loss + (beta / 2) * att_loss
-        dis_loss = att_loss
-        return loss, dis_loss
-
-
-class SP:
-    def __init__(self):
-        return
-
-    def criterion(loss, s_output, t_output, s_features, t_features):
-        gamma = 3e+3
-        t_output, t_middle_output = teacher(input, type=args.distype)
-        s_output, s_middle_output = student(input, type=args.distype)
-        sp_loss = similarity_preserve_loss(t_middle_output[2].detach(), s_middle_output[2])
-        ce_loss = criterion(s_output, target)
-        loss = ce_loss + gamma * sp_loss
-        dis_loss = sp_loss
-        return loss, dis_loss

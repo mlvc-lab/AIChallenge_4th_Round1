@@ -193,23 +193,30 @@ class Wide_ResNet_Cifar(nn.Module):
 
         return [bn1, bn2, bn3]
 
-    def _forward_impl(self, x):
+    def _forward_impl(self, x, dist_type=None):
         # See note [TorchScript super()]
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
+        x1 = self.layer1(x)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
 
-        x = self.avgpool(x)
+        x = self.avgpool(x3)
         x = torch.flatten(x, 1)
         x = self.fc(x)
-        return x
 
-    def forward(self, x):
-        return self._forward_impl(x)
+        if dist_type is None:
+            return x
+        elif dist_type in ['KD']:
+            return x, None
+        elif dist_type in ['AT', 'SP']:
+            return x, [x1, x2, x3]
+        # return x, [x1, x2, x3], local_output
+
+    def forward(self, x, dist_type=None, pos_list=[]):
+        return self._forward_impl(x, dist_type=dist_type)
 
 
 def wideresnet(data='cifar10', **kwargs):

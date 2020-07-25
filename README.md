@@ -161,23 +161,29 @@ python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3 -E --ckpt ckpt_best.
 
 This example shows the whole training process to compress the model through pruning, quantization, and distillation.
 
-## 0. train a teacher (larger than baseline model)
+## 1. train a teacher (larger than baseline model)
+
+train the baseline of teacher model.
+
+```shell
+python main.py cifar100 -a wideresnet --layers 40 --width-mult 4 -C -g 0 --save base.pth --epochs 200 --batch-size 64 --lr 0.1 --scheduler multistep --milestones 100 150 --gamma 0.1
+```
+
+## 2. train baseline
 
 train the baseline.
 
 ```shell
-python main.py cifar100 -a wideresnet --layers 40 --width-mult 4 -C -g 0 --load base.pth --save temp.pth --lr 0.0000001
+python main.py cifar100 -a resnet --layers 56 -C -g 0 --save base.pth --epochs 200 --batch-size 256 --lr 0.1 --scheduler multistep --milestones 100 150 --gamma 0.1
 ```
 
-## 1. train baseline
-
-train the baseline.
+or train the baseline with distillation using the previous teacher
 
 ```shell
-python main.py cifar100 -a resnet --layers 56 -C -g 0 --save base.pth
+python main.py cifar100 -a resnet --layers 56 -C -g 0 --save base_distilled.pth -D --dist-type AT --tch-arch wideresnet --tch-layers 40 --tch-width-mult 4 --tch-load base.pth --epochs 200 --batch-size 256 --lr 0.1 --scheduler multistep --milestones 100 150 --gamma 0.1
 ```
 
-## 2. prune the baseline
+## 3. prune the baseline
 
 prune the baseline of the previous step.
 
@@ -187,7 +193,7 @@ python main.py cifar100 -a resnet --layers 56 -C -g 0 --load base.pth --save pru
 --batch-size 128 --epochs 300 --lr 0.2 --wd 1e-4 --nesterov --scheduler multistep --milestones 150 225 --gamma 0.1
 ```
 
-## 3. quantize the pruned model
+## 4. quantize the pruned model
 
 quantize the pruned model from the previous step.
 

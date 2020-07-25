@@ -49,7 +49,7 @@ def main(args):
     print('\n=> creating model \'{}\''.format(arch_name))
 
     assert not (args.prune and args.quantize), "You should choose one --prune or --quantize"
-    if not args.prune and not args.quantize:  # base
+    if not args.prune and not args.quantize and not args.distill:  # base
         model = models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
                                            width_mult=args.width_mult)
     elif args.prune:    # for pruning
@@ -61,27 +61,17 @@ def main(args):
         model = quantization.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
                                                         width_mult=args.width_mult, qnn=quantizer.qnn,
                                                         qcfg=quantizer.__dict__[args.quant_cfg])
-    if args.distill: # for distillation
+    elif args.distill: # for distillation
         teacher_name = set_arch_tch_name(args)
-        distiller = distillation.losses.__dict__[args.dist_type]
-        teacher = models.__dict__[args.tch_arch](data=args.dataset, num_layers=args.tch_layers,
-                                                 width_mult=args.tch_width_mult)
+        distiller = distillation.losses.__dict__[args.dist_type]()
+        model = distillation.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
+                                                        width_mult=args.width_mult)
+        teacher = distillation.models.__dict__[args.tch_arch](data=args.dataset, num_layers=args.tch_layers,
+                                                              width_mult=args.tch_width_mult)
     
     if model is None:
         print('==> unavailable model parameters!! exit...\n')
         exit()
-
-    # for distillation
-    if args.distill:
-        if teacher is None:
-            print('==> unavailable model parameters!! exit...\n')
-            exit()
-        t_num_parameters = round((sum(l.nelement() for l in teacher.parameters()) / 1e+6), 3)
-        s_num_parameters = round((sum(l.nelement() for l in model.parameters()) / 1e+6), 3)
-        print("teacher name : ", teacher_name)
-        print("teacher parameters : ", t_num_parameters, "M")
-        print("student name : ", student_name)
-        print("student parameters : ", s_num_parameters, "M")
         
     # set criterion and optimizer
     criterion = nn.CrossEntropyLoss()
@@ -102,10 +92,7 @@ def main(args):
         
         # for distillation
         if args.distill:
-            with torch.cuda.device(args.gpuids[0]):
-                teacher = teacher.cuda()
-            teahcer = nn.DataParallel(teacher, device_ids=args.gpuids,
-                                      output_device=args.gpuids[0])
+            teacher = torch.nn.DataParallel(teacher).cuda()
 
     # Dataset loading
     print('==> Load data..')
@@ -136,9 +123,10 @@ def main(args):
         tch_ckpt_file = pathlib.Path('checkpoint') / teacher_name / args.dataset / args.tch_load
         assert isfile(tch_ckpt_file), '==> no checkpoint found \"{}\"'.format(args.tch_load)
 
-        print('==> Loading Teacher Checkpoint \'{}\''.format(args.load))
+        print('==> Loading Teacher Checkpoint \'{}\''.format(args.tch_load))
         tch_checkpoint = load_model(teacher, tch_ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda)
-        print('==> Loaded Teacher Checkpoint \'{}\''.format(args.load))
+        print('==> Loaded Teacher Checkpoint \'{}\''.format(args.tch_load))
+
 
     # for training
     if args.run_type == 'train':
@@ -159,9 +147,15 @@ def main(args):
             # train for one epoch
             print('===> [ Training ]')
             start_time = time.time()
-            acc1_train, acc5_train = train(args, train_loader,
-                epoch=epoch, model=model,
-                criterion=criterion, optimizer=optimizer)
+            if not args.distill:
+                acc1_train, acc5_train = train(args, train_loader,
+                    epoch=epoch, model=model,
+                    criterion=criterion, optimizer=optimizer)
+            else:   # for distillation
+                acc1_train, acc5_train = train(args, train_loader,
+                    epoch=epoch, model=model,
+                    criterion=criterion, optimizer=optimizer,
+                    teacher=teacher, distiller=distiller)
             elapsed_time = time.time() - start_time
             train_time += elapsed_time
             print('====> {:.2f} seconds to train this epoch\n'.format(
@@ -261,7 +255,8 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
     
     # for distillation
     if args.distill:
-        dist_losses = AverageMeter('DistLoss', ':.4e')
+        teacher = kwargs.get('teacher')
+        distiller = kwargs.get('distiller')
         # teacher.eval()
         teacher.eval()
 
@@ -290,20 +285,17 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
             output = model(input)
             loss = criterion(output, target)
         elif args.distill:  # for distillation
-            s_output, s_features = model(input)
-            t_output, t_features = teacher(input)
-            loss = criterion(s_output, target)
-            loss, dist_loss = distiller(loss, s_output, t_output, s_features, t_features)
-            dist_losses.update(dist_loss.item(), input.size(0))
+            output, s_features = model(input, args.dist_type)
+            t_output, t_features = teacher(input, args.dist_type)
+            ce_loss = criterion(output, target)
+            loss = distiller.add_dist_loss(ce_loss, s_output=output, t_output=t_output,
+                                           s_features=s_features, t_features=t_features)
 
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
         losses.update(loss.item(), input.size(0))
         top1.update(acc1[0], input.size(0))
         top5.update(acc5[0], input.size(0))
-        # for distillation
-        if args.distill:
-            dist_losses.update(dist_loss.item(), input.size(0))
         
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -327,9 +319,6 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
     ex.log_scalar('train.loss', losses.avg, epoch)
     ex.log_scalar('train.top1', top1.avg.item(), epoch)
     ex.log_scalar('train.top5', top5.avg.item(), epoch)
-    # for distillation
-    if args.distill:
-        ex.log_scalar('train.dist_loss', dist_losses.avg, epoch)
 
     return top1.avg, top5.avg
 

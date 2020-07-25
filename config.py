@@ -125,12 +125,8 @@ def config():
     # for distillation
     parser.add_argument('-D', '--distill', dest='distill', action='store_true',
                         help='If this is set, teacher model is loaded to distill the training student.')
-    parser.add_argument('--dist-type', default='KD', type=str,
-                        help='self distillation type, empty means exit (default: KD)')
-    parser.add_argument('--num-local', default=1, type=int,
-                        help='number of locals (default: 1)')
-    parser.add_argument('--num-SD', default=1, type=int,
-                        help='SD number of groups (default: 1)')
+    parser.add_argument('--dist-type', default=None, type=str,
+                        help='self distillation type in \{KD, AT, SP\} (default: None)')
     # teacher arch
     parser.add_argument('--tch-arch', default='wideresnet', type=str,
                         help='choose pre-trained teacher')
