@@ -92,7 +92,8 @@ def main(args):
         
         # for distillation
         if args.distill:
-            teacher = torch.nn.DataParallel(teacher).cuda()
+            teacher = torch.nn.DataParallel(teacher, device_ids=args.gpuids,
+                                            output_device=args.gpuids[0]).cuda()
 
     # Dataset loading
     print('==> Load data..')
