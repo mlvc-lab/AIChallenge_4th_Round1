@@ -119,8 +119,12 @@ def config():
                         help='If this is set, the model layers are changed to quantized layers.')
     parser.add_argument('--quantizer', default='lsq', type=str,
                         help='method of quantization to apply (default: lsq)')
+    parser.add_argument('--quant-bitw', default=8, type=int, metavar='N',
+                        help='number of bits for weights (default: 8)')
+    parser.add_argument('--quant-bita', default=32, type=int, metavar='N',
+                        help='number of bits for activations (default: 32)')
     parser.add_argument('--quant-cfg', default='base', type=str,
-                        help='name of configuration for the above quantizer (default: base)')
+                        help='name of quantization configuration for each type of layers (default: base)')
     ##################
     # for distillation
     parser.add_argument('-D', '--distill', dest='distill', action='store_true',

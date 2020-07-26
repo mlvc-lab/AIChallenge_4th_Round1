@@ -9,12 +9,14 @@ import torch.nn as nn
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
     return qnn.QuantConv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=dilation, groups=groups, bias=False, dilation=dilation, **qcfg['QuantConv2d'])
+                     padding=dilation, groups=groups, bias=False, dilation=dilation,
+                     nbits=bitw, **qcfg['QuantConv2d'])
 
 
 def conv1x1(in_planes, out_planes, stride=1):
     """1x1 convolution"""
-    return qnn.QuantConv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False, **qcfg['QuantConv2d'])
+    return qnn.QuantConv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False,
+                           nbits=bitw, **qcfg['QuantConv2d'])
 
 
 class BasicBlock(nn.Module):
@@ -33,10 +35,10 @@ class BasicBlock(nn.Module):
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv3x3(inplanes, planes, stride)
         self.bn1 = norm_layer(planes)
-        self.relu1 = qnn.QuantReLU(inplace=False, **qcfg['QuantReLU'])
+        self.relu1 = qnn.QuantReLU(inplace=False, nbits=bita, **qcfg['QuantReLU'])
         self.conv2 = conv3x3(planes, planes)
         self.bn2 = norm_layer(planes)
-        self.relu2 = qnn.QuantReLU(inplace=False, **qcfg['QuantReLU'])
+        self.relu2 = qnn.QuantReLU(inplace=False, nbits=bita, **qcfg['QuantReLU'])
         self.downsample = downsample
         self.stride = stride
 
@@ -72,13 +74,13 @@ class Bottleneck(nn.Module):
         # Both self.conv2 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv1x1(inplanes, width)
         self.bn1 = norm_layer(width)
-        self.relu1 = qnn.QuantReLU(inplace=False, **qcfg['QuantReLU'])
+        self.relu1 = qnn.QuantReLU(inplace=False, nbits=bita, **qcfg['QuantReLU'])
         self.conv2 = conv3x3(width, width, stride, groups, dilation)
         self.bn2 = norm_layer(width)
-        self.relu2 = qnn.QuantReLU(inplace=False, **qcfg['QuantReLU'])
+        self.relu2 = qnn.QuantReLU(inplace=False, nbits=bita, **qcfg['QuantReLU'])
         self.conv3 = conv1x1(width, planes * self.expansion)
         self.bn3 = norm_layer(planes * self.expansion)
-        self.relu3 = qnn.QuantReLU(inplace=False, **qcfg['QuantReLU'])
+        self.relu3 = qnn.QuantReLU(inplace=False, nbits=bita, **qcfg['QuantReLU'])
         self.downsample = downsample
         self.stride = stride
 
@@ -127,9 +129,9 @@ class ResNet(nn.Module):
         self.groups = groups
         self.base_width = width_per_group
         self.conv1 = qnn.QuantConv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
-                               bias=False, **qcfg['QuantConv2d'])
+                               bias=False, **qcfg['excepts']['conv1'])
         self.bn1 = norm_layer(self.inplanes)
-        self.relu = qnn.QuantReLU(inplace=False, **qcfg['QuantReLU'])
+        self.relu = qnn.QuantReLU(inplace=False, nbits=bita, **qcfg['QuantReLU'])
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
@@ -139,7 +141,7 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = qnn.QuantLinear(512 * block.expansion, num_classes, **qcfg['QuantLinear'])
+        self.fc = qnn.QuantLinear(512 * block.expansion, num_classes, **qcfg['excepts']['fc'])
 
         for m in self.modules():
             if isinstance(m, qnn.QuantConv2d):
@@ -182,25 +184,31 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def _forward_impl(self, x):
+    def _forward_impl(self, x, dist_type=None):
         # See note [TorchScript super()]
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
+        x1 = self.layer1(x)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
+        x4 = self.layer4(x3)
 
-        x = self.avgpool(x)
+        x = self.avgpool(x4)
         x = torch.flatten(x, 1)
         x = self.fc(x)
-        return x
+        
+        if dist_type is None:
+            return x
+        elif dist_type in ['KD']:
+            return x, None
+        elif dist_type in ['AT', 'SP']:
+            return x, [x1, x2, x3, x4]
 
-    def forward(self, x):
-        return self._forward_impl(x)
+    def forward(self, x, dist_type=None, pos_list=[]):
+        return self._forward_impl(x, dist_type=dist_type)
 
 
 class ResNet_CIFAR(nn.Module):
@@ -225,16 +233,16 @@ class ResNet_CIFAR(nn.Module):
         self.groups = groups
         self.base_width = width_per_group
         self.conv1 = qnn.QuantConv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1,
-                               bias=False, **qcfg['QuantConv2d'])
+                               bias=False, **qcfg['excepts']['conv1'])
         self.bn1 = norm_layer(self.inplanes)
-        self.relu = qnn.QuantReLU(inplace=False, **qcfg['QuantReLU'])
+        self.relu = qnn.QuantReLU(inplace=False, nbits=bita, **qcfg['QuantReLU'])
         self.layer1 = self._make_layer(block, 16, layers[0])
         self.layer2 = self._make_layer(block, 32, layers[1], stride=2,
                                        dilate=replace_stride_with_dilation[0])
         self.layer3 = self._make_layer(block, 64, layers[2], stride=2,
                                        dilate=replace_stride_with_dilation[1])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = qnn.QuantLinear(64 * block.expansion, num_classes, **qcfg['QuantLinear'])
+        self.fc = qnn.QuantLinear(64 * block.expansion, num_classes, **qcfg['excepts']['fc'])
 
         for m in self.modules():
             if isinstance(m, qnn.QuantConv2d):
@@ -277,23 +285,29 @@ class ResNet_CIFAR(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def _forward_impl(self, x):
+    def _forward_impl(self, x, dist_type=None):
         # See note [TorchScript super()]
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
+        x1 = self.layer1(x)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
 
-        x = self.avgpool(x)
+        x = self.avgpool(x3)
         x = torch.flatten(x, 1)
         x = self.fc(x)
-        return x
+        
+        if dist_type is None:
+            return x
+        elif dist_type in ['KD']:
+            return x, None
+        elif dist_type in ['AT', 'SP']:
+            return x, [x1, x2, x3]
 
-    def forward(self, x):
-        return self._forward_impl(x)
+    def forward(self, x, dist_type=None, pos_list=[]):
+        return self._forward_impl(x, dist_type=dist_type)
 
 
 # Model configurations
@@ -326,6 +340,11 @@ def resnet(data='cifar10', **kwargs):
     global qnn
     qnn = kwargs.get('qnn')
     assert qnn is not None, "Please specify proper quantization method"
+    # bitw and bita
+    global bitw
+    bitw = kwargs.get('bitw')
+    global bita
+    bita = kwargs.get('bita')
     # qcfg
     global qcfg
     qcfg = kwargs.get('qcfg')

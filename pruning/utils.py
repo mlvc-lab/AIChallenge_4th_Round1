@@ -7,10 +7,16 @@ import time, os, math
 
 
 def get_weight_threshold(model, rate):
+    state = model.state_dict()
+
     importance_all = None
-    for name, item in model.module.named_parameters():
-        if 'conv' in name and 'mask' not in name:
-            weights = item.data.view(-1).cpu()
+    total_weights = 0
+    for name, item in model.named_parameters():
+        if 'mask' in name:
+            key = name.replace('mask', 'weight')
+            assert key in state.keys()
+
+            weights = state[key].data.view(-1).cpu()
             #importance = weights.pow(2).numpy()
             importance = weights.abs().numpy()
 
@@ -19,16 +25,20 @@ def get_weight_threshold(model, rate):
             else:
                 importance_all = np.append(importance_all, importance)
 
-    threshold = np.sort(importance_all)[int(len(importance_all) * rate / 100)]
+        if 'weight' in name:
+            total_weights += item.numel()
+
+    threshold = np.sort(importance_all)[int(total_weights * rate / 100)]
     return threshold
 
 
 def weight_prune(model, threshold):
     state = model.state_dict()
     for name, item in model.named_parameters():
-        if 'conv' in name and 'weight' in name:
+        if 'weight' in name:
             key = name.replace('weight', 'mask')
-            state[key].data.copy_(torch.gt(item.data.abs(), threshold).float())
+            if key in state.keys():
+                state[key].data.copy_(torch.gt(item.data.abs(), threshold).float())
 
 
 def get_filter_importance(model):
@@ -73,6 +83,7 @@ def filter_prune(model, importance, rate):
 def cal_sparsity(model):
     mask_nonzeros = 0
     mask_length = 0
+    total_weights = 0
 
     for name, item in model.module.named_parameters():
         if 'mask' in name:
@@ -80,12 +91,14 @@ def cal_sparsity(model):
             np_flatten = flatten.cpu().numpy()
 
             mask_nonzeros += np.count_nonzero(np_flatten)
-            mask_length += item.size(0) * item.size(1) * item.size(2) * item.size(3)
+            mask_length += item.numel()
 
-    num_total = mask_length
+        if 'weight' in name:
+            total_weights += item.numel()
+
     num_zero = mask_length - mask_nonzeros
-    sparsity = (num_zero / num_total) * 100
-    return num_total, num_zero, sparsity
+    sparsity = (num_zero / total_weights) * 100
+    return total_weights, num_zero, sparsity
 
 '''
 def weightcopy(fullmodel, maskmodel):

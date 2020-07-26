@@ -185,20 +185,30 @@ python main.py cifar100 -a resnet --layers 56 -C -g 0 --save base_distilled.pth 
 
 ## 3. prune the baseline
 
-prune the baseline of the previous step.
+prune the previous baseline.
 
 ```shell
-python main.py cifar100 -a resnet --layers 56 -C -g 0 --load base.pth --save prune.pth \
--P --prune-type unstructured --prune-freq 2 --prune-rate 0.9 \
---batch-size 128 --epochs 300 --lr 0.2 --wd 1e-4 --nesterov --scheduler multistep --milestones 150 225 --gamma 0.1
+python main.py cifar100 -a resnet --layers 56 -C -g 0 --load base_distilled.pth --save prune.pth -P --prune-type unstructured --prune-freq 16 --prune-rate 0.9 --epochs 300 --batch-size 128  --lr 0.2 --wd 1e-4 --nesterov --scheduler multistep --milestones 150 225 --gamma 0.1
+```
+
+or prune the previous baseline with distillation using the previous teacher
+
+```shell
+python main.py cifar100 -a resnet --layers 56 -C -g 0 --load base_distilled.pth --save prune.pth -P --prune-type unstructured --prune-freq 16 --prune-rate 0.9 -D --dist-type KD --tch-arch wideresnet --tch-layers 40 --tch-width-mult 4 --tch-load base.pth --epochs 300 --batch-size 128  --lr 0.2 --wd 1e-4 --nesterov --scheduler multistep --milestones 150 225 --gamma 0.1
 ```
 
 ## 4. quantize the pruned model
 
-quantize the pruned model from the previous step.
+quantize the previous pruned model.
 
 ```shell
-python main.py cifar100 -a resnet --layers 56 -C -g 0 --load prune.pth --save quant.pth -Q --quantizer lsq --quant-cfg mask --lr 0.01 --scheduler multistep --milestones 100 150
+python main.py cifar100 -a resnet --layers 56 -C -g 0 --load base_distilled.pth --save quant.pth -Q --quantizer lsq --quant-bitw 8 --quant-bita 32 --quant-cfg base --epochs 200 --batch-size 128  --lr 0.01 --wd 1e-4 --scheduler multistep --milestones 100 150 --gamma 0.1
+```
+
+or quantize the previous pruned model with distillation using the previous teacher.
+
+```shell
+python main.py cifar100 -a resnet --layers 56 -C -g 0 --load prune_distilled.pth --save quant_distilled.pth -Q --quantizer lsq --quant-bitw 8 --quant-bita 32 --quant-cfg mask -D --dist-type KD --tch-arch wideresnet --tch-layers 40 --tch-width-mult 4 --tch-load base.pth --epochs 200 --batch-size 128  --lr 0.01 --wd 1e-4 --scheduler multistep --milestones 100 150 --gamma 0.1
 ```
 
 ----------

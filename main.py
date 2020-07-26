@@ -49,9 +49,13 @@ def main(args):
     print('\n=> creating model \'{}\''.format(arch_name))
 
     assert not (args.prune and args.quantize), "You should choose one --prune or --quantize"
-    if not args.prune and not args.quantize and not args.distill:  # base
-        model = models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
-                                           width_mult=args.width_mult)
+    if not args.prune and not args.quantize:  # base
+        if not args.distill:    
+            model = models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
+                                               width_mult=args.width_mult)
+        elif args.distill: # for distillation
+            model = distillation.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
+                                                            width_mult=args.width_mult)
     elif args.prune:    # for pruning
         pruner = pruning.__dict__[args.pruner]
         model = pruning.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
@@ -60,12 +64,11 @@ def main(args):
         quantizer = quantization.__dict__[args.quantizer]
         model = quantization.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
                                                         width_mult=args.width_mult, qnn=quantizer.qnn,
+                                                        bitw=args.quant_bitw, bita=args.quant_bita,
                                                         qcfg=quantizer.__dict__[args.quant_cfg])
-    elif args.distill: # for distillation
+    if args.distill: # for distillation
         teacher_name = set_arch_tch_name(args)
         distiller = distillation.losses.__dict__[args.dist_type]()
-        model = distillation.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
-                                                        width_mult=args.width_mult)
         teacher = distillation.models.__dict__[args.tch_arch](data=args.dataset, num_layers=args.tch_layers,
                                                               width_mult=args.tch_width_mult)
     
@@ -273,7 +276,7 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
         # for pruning
         if args.prune:
             if (globals()['iterations']+1) % args.prune_freq==0 and (epoch+1) <= args.milestones[1]:
-                target_sparsity = args.prune_rate - args.prune_rate * (1 - (epoch+1)/args.milestones[1])**3
+                target_sparsity = args.prune_rate - args.prune_rate * (1 - (globals()['iterations'])/(args.milestones[1] * len(train_loader)))**3
                 if args.prune_type == 'structured':
                     importance = pruning.get_filter_importance(model)
                     pruning.filter_prune(model, importance, target_sparsity * 100)
