@@ -197,23 +197,23 @@ def set_arch_name(args):
 
 
 def get_imagenet_checkpoint(args):
-    ckpt_path = {"rexnet-1.0": "checkpoint/rexnet/imagenet/rexnet-1.0.pth", 
-               "rexnet-1.3": "checkpoint/rexnet/imagenet/rexnet-1.3.pth", 
-               "rexnet-1.5": "checkpoint/rexnet/imagenet/rexnet-1.5.pth",
-               "rexnet-2.0": "checkpoint/rexnet/imagenet/rexnet-2.0.pth",
-               "resnet18": "checkpoint/resnet/imagenet/resnet18.pth",
-               "resnet34": "checkpoint/resnet/imagenet/resnet34.pth",
-               "resnet50": "checkpoint/resnet/imagenet/resnet50.pth",
-               "resnet101": "checkpoint/resnet/imagenet/resnet101.pth",
-               "efficientnet-b0": "checkpoint/efficientnet/imagenet/efficientnet-b0.pth",
-               "efficientnet-b1": "checkpoint/efficientnet/imagenet/efficientnet-b1.pth",
-               "efficientnet-b2": "checkpoint/efficientnet/imagenet/efficientnet-b2.pth",
-               "efficientnet-b3": "checkpoint/efficientnet/imagenet/efficientnet-b3.pth",
-               "efficientnet-b4": "checkpoint/efficientnet/imagenet/efficientnet-b4.pth",
-               "efficientnet-b5": "checkpoint/efficientnet/imagenet/efficientnet-b5.pth",
-               "efficientnet-b6": "checkpoint/efficientnet/imagenet/efficientnet-b6.pth",
-               "efficientnet-b7": "checkpoint/efficientnet/imagenet/efficientnet-b7.pth",
-               "mobilenetv2": "checkpoint/mobilenetv2/imagenet/mobilenetv2.pth"
+    ckpt_path = {"rexnet-1.0": "/root/volume/Base/checkpoint/rexnet/imagenet/rexnet-1.0.pth", 
+               "rexnet-1.3": "/root/volume/Base/checkpoint/rexnet/imagenet/rexnet-1.3.pth", 
+               "rexnet-1.5": "/root/volume/Base/checkpoint/rexnet/imagenet/rexnet-1.5.pth",
+               "rexnet-2.0": "/root/volume/Base/checkpoint/rexnet/imagenet/rexnet-2.0.pth",
+               "resnet18": "/root/volume/Base/checkpoint/resnet/imagenet/resnet18.pth",
+               "resnet34": "/root/volume/Base/checkpoint/resnet/imagenet/resnet34.pth",
+               "resnet50": "/root/volume/Base/checkpoint/resnet/imagenet/resnet50.pth",
+               "resnet101": "/root/volume/Base/checkpoint/resnet/imagenet/resnet101.pth",
+               "efficientnet-b0": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b0.pth",
+               "efficientnet-b1": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b1.pth",
+               "efficientnet-b2": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b2.pth",
+               "efficientnet-b3": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b3.pth",
+               "efficientnet-b4": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b4.pth",
+               "efficientnet-b5": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b5.pth",
+               "efficientnet-b6": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b6.pth",
+               "efficientnet-b7": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b7.pth",
+               "mobilenetv2": "/root/volume/Base/checkpoint/mobilenetv2/imagenet/mobilenetv2.pth"
 }
 
     if args.arch == 'rexnet':
