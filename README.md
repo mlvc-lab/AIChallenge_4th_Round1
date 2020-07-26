@@ -213,6 +213,18 @@ python main.py cifar100 -a resnet --layers 56 -C -g 0 --load prune_distilled.pth
 
 ----------
 
+# AI-Challenge Training
+
+## 1. using things dataset
+
+train a baseline model.
+
+```shell
+python main.py things --datapath /dataset/things_v1 -a resnet --layers 18 -C -g 0 --save base.pth --epochs 200 --batch-size 64 --lr 0.1 --scheduler multistep --milestones 100 150 --gamma 0.1
+```
+
+----------
+
 ## References
 
 - [torchvision models github codes](https://github.com/pytorch/vision/tree/master/torchvision/models)

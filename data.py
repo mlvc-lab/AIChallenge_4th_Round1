@@ -158,18 +158,20 @@ def imagenet_loader(batch_size, num_workers, datapath, cuda):
 
 
 def things_loader(batch_size, num_workers, datapath, cuda):
+    normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
+                                    std=[0.2087, 0.1992, 0.1988])
     transform = transforms.Compose([
         transforms.RandomResizedCrop (256),
         transforms.CenterCrop(224),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        # normalize,
+        normalize,
     ])
     transform_val = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
         transforms.ToTensor(),
-        # normalize,
+        normalize,
     ])
 
     trainset = ImageFolder(str(Path(datapath) / 'train'), transform=transform)

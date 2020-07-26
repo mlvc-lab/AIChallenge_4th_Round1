@@ -271,6 +271,8 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
         data_time.update(time.time() - end)
 
         if args.cuda:
+            if args.dataset == 'things':
+                input = input.cuda(non_blocking=True)
             target = target.cuda(non_blocking=True)
 
         # for pruning

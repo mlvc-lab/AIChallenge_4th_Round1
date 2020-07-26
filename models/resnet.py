@@ -328,5 +328,11 @@ def resnet(data='cifar10', **kwargs):
             return ResNet(block, layers, 1000)
         else:
             return None
+    elif data == 'things':
+        if num_layers in cfgs.keys():
+            block, layers = cfgs[num_layers]
+            return ResNet(block, layers, 25)
+        else:
+            return None
     else:
         return None
