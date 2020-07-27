@@ -60,6 +60,8 @@ def config():
                         help='mini-batch size (default: 256), this is the total '
                              'batch size of all GPUs on the current node when '
                              'using Data Parallel')
+    parser.add_argument('--optimizer', default='SGD', type=str,
+                        help='name of optimizer to train the model (default: SGD)')
     parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
                         metavar='LR', help='initial learning rate (default: 0.1)',
                         dest='lr')

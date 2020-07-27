@@ -7,3 +7,5 @@ models/__pycache__/
 data/
 checkpoint/
 summary/
+
+run*.sh

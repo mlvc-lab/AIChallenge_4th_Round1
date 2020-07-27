@@ -331,7 +331,7 @@ def resnet(data='cifar10', **kwargs):
     elif data == 'things':
         if num_layers in cfgs.keys():
             block, layers = cfgs[num_layers]
-            return ResNet(block, layers, 25)
+            return ResNet(block, layers, 41)
         else:
             return None
     else:

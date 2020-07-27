@@ -78,9 +78,13 @@ def main(args):
         
     # set criterion and optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=args.lr,
-                          momentum=args.momentum, weight_decay=args.weight_decay,
-                          nesterov=args.nesterov)
+    if args.optimizer == 'SGD':
+        optimizer = optim.SGD(model.parameters(), lr=args.lr,
+                              momentum=args.momentum, weight_decay=args.weight_decay,
+                              nesterov=args.nesterov)
+    elif args.optimizer == 'AdamW':
+        optimizer = optim.Adam(model.parameters(), lr=args.lr,
+                               weight_decay=args.weight_decay)
     scheduler = set_scheduler(optimizer, args)
     
     # set multi-gpu
@@ -271,8 +275,8 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
         data_time.update(time.time() - end)
 
         if args.cuda:
-            if args.dataset == 'things':
-                input = input.cuda(non_blocking=True)
+            #if args.dataset == 'things':
+            #    input = input.cuda(non_blocking=True)
             target = target.cuda(non_blocking=True)
 
         # for pruning
@@ -346,6 +350,8 @@ def validate(args, val_loader, epoch, model, criterion):
         end = time.time()
         for i, (input, target) in enumerate(val_loader):
             if args.cuda:
+                #if args.dataset == 'things':
+                #    input = input.cuda(non_blocking=True)
                 target = target.cuda(non_blocking=True)
 
             # compute output
