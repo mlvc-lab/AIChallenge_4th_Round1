@@ -177,5 +177,7 @@ def mobilenetv2(data='cifar10', **kwargs):
         return MobileNetV2_CIFAR(int(data[5:]), width_mult)
     elif data == 'imagenet':
         return MobileNetV2(1000, width_mult)
+    elif data == 'things':
+        return MobileNetV2(41, width_mult)
     else:
         return None
