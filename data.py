@@ -234,8 +234,8 @@ def things_unzip_and_convert(source, target):
                 if not Path(fname).suffix in ['.JPG', '.jpg' ]:
                     continue
 
-                if i % 300 == 0:
-                    label = str(Path(fname).parent.name).split('_')[-3]
+                if i % 100 == 0:
+                    label = str(Path(fname).parent.name).split('_')[-2]
             
                     # check and make label dir
                     label_dir = target / label
@@ -254,7 +254,7 @@ def things_unzip_and_convert(source, target):
                     img.save(Path(target)/label/(Path(fname).stem + '.jpg'))
 
                     # delete file
-                    (temp / fname).unlink()
+                    # (temp / fname).unlink()
                 i+=1
     rm_tree(temp)
 
@@ -310,6 +310,5 @@ def DataLoader(batch_size, num_workers, dataset='things', datapath='/dataset/thi
 
 
 if __name__ == "__main__":
-    # things_unzip_and_convert('/home/kairos/Downloads/source', '/media/kairos/Data/target')
+    things_unzip_and_convert('F:/src', 'F:/dst')
     # data_split('/home/kairos/Downloads/things', '/home/kairos/Downloads/things_split')
-    pass
