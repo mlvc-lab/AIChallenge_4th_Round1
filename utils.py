@@ -8,6 +8,8 @@ from os import remove
 from os.path import isfile
 from collections import OrderedDict
 
+from sklearn.metrics import f1_score
+
 import models
 
 
@@ -150,6 +152,25 @@ class ProgressMeter(object):
         num_digits = len(str(num_batches // 1))
         fmt = '{:' + str(num_digits) + 'd}'
         return '[' + fmt + '/' + fmt.format(num_batches) + ']'
+
+
+class ScoreMeter(object):
+    r"""Stores the ground truth and prediction labels
+    to compute the f1-score (macro)
+    """
+    def __init__(self):
+        self.label = []
+        self.prediction = []
+        self.score = None
+
+    def update(self, output, target):
+        pred = torch.argmax(output, dim=-1)
+        self.prediction += pred.detach().cpu().tolist()
+        self.label += target.cpu().tolist()
+
+    def cal_score():
+        with torch.no_grad():
+            self.score = f1_score(self.label, self.prediction, average='macro')
 
 
 def set_scheduler(optimizer, args):
