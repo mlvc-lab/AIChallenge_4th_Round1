@@ -257,6 +257,9 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
     top5 = AverageMeter('Acc@5', ':6.2f')
     progress = ProgressMeter(len(train_loader), batch_time, data_time,
                              losses, top1, top5, prefix="Epoch: [{}]".format(epoch))
+    # for things dataset
+    if args.dataset == 'things':
+        f1 = ScoreMeter()
 
     # switch to train mode
     model.train()
@@ -306,6 +309,9 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
         losses.update(loss.item(), input.size(0))
         top1.update(acc1[0], input.size(0))
         top5.update(acc5[0], input.size(0))
+        # for things dataset
+        if args.dataset == 'things':
+            f1.update(output, target)
         
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -323,12 +329,24 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
         # end of one mini-batch
         globals()['iterations'] += 1
 
+    # for things dataset
+    if args.dataset == 'things':
+        f1.cal_score()
+
     print('====> Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
           .format(top1=top1, top5=top5))
+    # for things dataset
+    if args.dataset == 'things':
+        print('====> marco mean of F1 scores: {:.6f}'
+              .format(f1.score))
 
+    # logging at sacred
     ex.log_scalar('train.loss', losses.avg, epoch)
     ex.log_scalar('train.top1', top1.avg.item(), epoch)
     ex.log_scalar('train.top5', top5.avg.item(), epoch)
+    # for things dataset
+    if args.dataset == 'things':
+        ex.log_scalar('train.f1', f1.score, epoch)
 
     return top1.avg, top5.avg
 
@@ -342,7 +360,9 @@ def validate(args, val_loader, epoch, model, criterion):
     top5 = AverageMeter('Acc@5', ':6.2f')
     progress = ProgressMeter(len(val_loader), batch_time, losses, top1, top5,
                              prefix='Test: ')
-    f1 = ScoreMeter()
+    # for things dataset
+    if args.dataset == 'things':
+        f1 = ScoreMeter()
 
     # switch to evaluate mode
     model.eval()
@@ -364,7 +384,9 @@ def validate(args, val_loader, epoch, model, criterion):
             losses.update(loss.item(), input.size(0))
             top1.update(acc1[0], input.size(0))
             top5.update(acc5[0], input.size(0))
-            f1.update(output, target)
+            # for things dataset
+            if args.dataset == 'things':
+                f1.update(output, target)
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -374,19 +396,24 @@ def validate(args, val_loader, epoch, model, criterion):
 
             end = time.time()
 
-        # for f1 gmean score
-        f1.cal_score()
+        # for things dataset
+        if args.dataset == 'things':
+            f1.cal_score()
 
         print('====> Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
               .format(top1=top1, top5=top5))
-        print('====> gmean of F1 scores: {:.6f}'
-              .format(f1.score))
+        # for things dataset
+        if args.dataset == 'things':
+            print('====> marco mean of F1 scores: {:.6f}'
+                  .format(f1.score))
 
     # logging at sacred
     ex.log_scalar('test.loss', losses.avg, epoch)
     ex.log_scalar('test.top1', top1.avg.item(), epoch)
     ex.log_scalar('test.top5', top5.avg.item(), epoch)
-    ex.log_scalar('test.f1', f1.score, epoch)
+    # for things dataset
+    if args.dataset == 'things':
+        ex.log_scalar('test.f1', f1.score, epoch)
 
     return top1.avg, top5.avg
 

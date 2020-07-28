@@ -20,18 +20,19 @@ Specially, you can train or test on any device (CPU/sinlge GPU/multi GPU) and di
 
 - `config.py`: set configuration
 - `data.py`: data loading
-- `down_ckpt.py`: download pretrained checkpoints
 - `main.py`: main python file for training or testing
 - `models`
   - `__init__.py`
   - `mobilenet.py`
   - `mobilenetv2.py`
   - `resnet.py`
+  - ...
 - `utils.py`
+- ...
 
 ----------
 
-## How to train / test networks
+## How to train or test networks
 
 ```text
 usage: main.py [-h] [-a ARCH] [--layers N] [--width-mult WM] [--datapath PATH]
@@ -124,32 +125,51 @@ optional arguments:
   --tch-load FILE.pth   name of checkpoint for teacher model (default: None)
 ```
 
-### Training
+## Training
 
 #### Train a network using default scheduler (stepLR) with multi-GPU
+
+1. train a ResNet-56 model
 
 ```shell
 python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3
 ```
 
-or
+2. train a WideResNet40-4 model with multi-GPU
 
-``` shell
-python main.py cifar100 -a mobilenet -C -g 0 1 2 3
+```shell
+python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3
 ```
 
+3. train a MobileNetV2 model
+
+```shell
+python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3
+```
+
+4. train a EfficientNet-B0 model
+
+```shell
+python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3
+```
+
+5. train a ReXNet model
+
+```shell
+python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3
+```
+--------
 #### Train a network using multi-step scheduler with multi-GPU
 
 ```shell
 python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3 --scheduler multistep --milestones 100 150 --gamma 0.1
 ```
 
-### Test
+## Test
 
 ```shell
 python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3 -E --ckpt ckpt_best.pth
 ```
-
 ----------
 
 # Total compression processes
