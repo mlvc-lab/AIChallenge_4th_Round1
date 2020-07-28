@@ -1,4 +1,5 @@
 import torch
+import yaml
 
 import csv
 import shutil
@@ -18,9 +19,9 @@ def load_model(model, ckpt_file, main_gpu, use_cuda: bool=True):
     if use_cuda:
         checkpoint = torch.load(ckpt_file, map_location=lambda storage, loc: storage.cuda(main_gpu))
         try:
-            model.load_state_dict(checkpoint)
+            model.load_state_dict(checkpoint, strict=False)
         except:
-            model.module.load_state_dict(checkpoint)
+            model.module.load_state_dict(checkpoint, strict=False)
     else:
         checkpoint = torch.load(ckpt_file, map_location=lambda storage, loc: storage)
         try:
@@ -43,7 +44,7 @@ def load_model(model, ckpt_file, main_gpu, use_cuda: bool=True):
 def save_model(arch_name, dataset, state, timestring):
     r"""Save the model (checkpoint) at the training time
     """
-    dir_ckpt = pathlib.Path('checkpoint')
+    dir_ckpt = pathlib.Path('/root/volume/Base/checkpoint')
     dir_path = dir_ckpt / arch_name / dataset
     dir_path.mkdir(parents=True, exist_ok=True)
     dir_path = dir_path / timestring
@@ -51,6 +52,15 @@ def save_model(arch_name, dataset, state, timestring):
     model_file = dir_path / 'ckpt_best.pth'
     torch.save(state, model_file)
 
+            
+def save_config(arch_name, dataset, args, timestring):
+    dir_ckpt = pathlib.Path('/root/volume/Base/checkpoint')
+    dir_path = dir_ckpt / arch_name / dataset
+    dir_path = dir_path / timestring
+    if args != None:
+        d = vars(args)
+        with open(dir_path / 'config.yml', 'w') as f:
+            yaml.dump(args, f)
 
 def save_summary(arch_name, dataset, summary):
     r"""Save summary i.e. top-1/5 validation accuracy in each epoch

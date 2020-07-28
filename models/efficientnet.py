@@ -65,8 +65,8 @@ class MBConvBlock(nn.Module):
         if self.has_se:
             Conv2d = get_same_padding_conv2d(image_size=(1,1))
             num_squeezed_channels = max(1, int(self._block_args.input_filters * self._block_args.se_ratio))
-            self._se_reduce = Conv2d(in_channels=oup, out_channels=num_squeezed_channels, kernel_size=1)
-            self._se_expand = Conv2d(in_channels=num_squeezed_channels, out_channels=oup, kernel_size=1)
+            self._se_reduce = Conv2d(in_channels=oup, out_channels=num_squeezed_channels, kernel_size=1, bias=False)        # custom by pruning
+            self._se_expand = Conv2d(in_channels=num_squeezed_channels, out_channels=oup, kernel_size=1, bias=False)
 
         # Pointwise convolution phase
         final_oup = self._block_args.output_filters

@@ -91,7 +91,7 @@ def config():
                         help='test model?')
     parser.add_argument('-C', '--cuda', dest='cuda', action='store_true',
                         help='use cuda?')
-    parser.add_argument('-g', '--gpuids', metavar='GPU', default=[0],
+    parser.add_argument('-g', '--gpuids', metavar='GPU', default=[0,1],
                         type=int, nargs='+',
                         help='GPU IDs for using (default: 0)')
     parser.add_argument('--efficient-type', default=0, type=int, help="select efficient type (0 : b0, 1 : b1, 2 : b2 ...)")

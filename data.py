@@ -184,7 +184,7 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
         train_loader = torch.utils.data.DataLoader(
             trainset,
             batch_size=batch_size, shuffle=True,
-            num_workers=num_workers, pin_memory=True)
+            num_workers=num_workers, pin_memory=True, drop_last=True)
         val_loader = torch.utils.data.DataLoader(
             valset,
             batch_size=batch_size, shuffle=False,
@@ -193,7 +193,7 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
         train_loader = torch.utils.data.DataLoader(
             trainset,
             batch_size=batch_size, shuffle=True,
-            num_workers=num_workers, pin_memory=False)
+            num_workers=num_workers, pin_memory=False, drop_last=True)
         val_loader = torch.utils.data.DataLoader(
             valset,
             batch_size=batch_size, shuffle=False,
@@ -329,7 +329,7 @@ def DataLoader(batch_size, image_size, num_workers, dataset='cifar10', cuda=True
     elif DataSet == 'imagenet':
         return imagenet_loader(batch_size, image_size, num_workers,"/dataset/ImageNet", cuda)
     elif DataSet == 'things':
-        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v1", cuda)
+        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v3", cuda)
 
 
 if __name__ == '__main__':

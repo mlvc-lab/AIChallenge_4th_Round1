@@ -148,7 +148,7 @@ def main(args):
 
             elif args.arch == "rexnet":
                 in_channel = model.module.output[1].in_channels
-                model.module.output[1] = nn.Linear(in_channel, target_class_number).cuda()
+                model.module.output[1] = nn.Conv2d(in_channel, target_class_number, 1, bias=True).cuda()
 
             elif args.arch == "resnet":
                 in_channel = model.module.fc.in_features
@@ -212,6 +212,10 @@ def main(args):
         best_acc1 = max(acc1_valid, best_acc1)
         if is_best:
             save_model(arch_name, args.dataset, state, timestring)
+            # 실험 정보 저장
+            if epoch == 0:
+                save_config(arch_name, args.dataset, args, timestring)
+                
         save_summary(arch_name, args.dataset, summary)
 
     # calculate time 

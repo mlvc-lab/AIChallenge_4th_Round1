@@ -323,7 +323,7 @@ def resnet(data='cifar10', **kwargs):
     if args.transfer:
         if num_layers in cfgs.keys():
             block, layers = cfgs[num_layers]
-            return ResNet(block)
+            return ResNet(block, layers)
         else:
             print("no resnet model have {} layers".format(num_layers))
             exit()
