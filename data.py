@@ -259,7 +259,13 @@ def things_unzip_and_convert(source, target):
     rm_tree(temp)
 
 
-def data_split(source, target):
+def data_split(source, target, ratio=0.7):
+    """
+    source 데이터를 target 위치에 train, val로 나누는 함수. train val 비율은 대략 ratio : 1-ratio.
+    :param source: split 할 데이터 폴더
+    :param target: split된 데이터를 저장할 위치
+    :param ratio: train set의 비율
+    """
     # constant
     train = 'train'
     val = 'val'
@@ -287,12 +293,10 @@ def data_split(source, target):
 
         # split
         for instance in tqdm(classname.iterdir()):
-            if random.random() > 0.5:
-                # print(str(instance), str(train_path/classname.name/instance.name))
+            if random.random() > ratio:
                 shutil.copy(str(instance), str(train_path/classname.name/instance.name))
             else:
                 shutil.copy(str(instance), str(val_path/classname.name/instance.name))
-                # print(str(instance), str(val_path/classname.name/instance.name))
 
 
 def DataLoader(batch_size, num_workers, dataset='things', datapath='/dataset/things_v1', cuda=True):
