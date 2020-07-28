@@ -168,7 +168,7 @@ class ScoreMeter(object):
         self.prediction += pred.detach().cpu().tolist()
         self.label += target.cpu().tolist()
 
-    def cal_score():
+    def cal_score(self):
         with torch.no_grad():
             self.score = f1_score(self.label, self.prediction, average='macro')
 
