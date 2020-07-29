@@ -106,7 +106,12 @@ def config():
     parser.add_argument('--load', default=None, type=str, metavar='FILE.pth',
                         help='name of checkpoint for testing model (default: None)')
     parser.add_argument('--save', default='ckpt.pth', type=str, metavar='FILE.pth',
-                        help='name of checkpoint for saving model (default: None)')
+                        help='name of checkpoint for saving model (default: ckpt.pth)')
+    # for transfer Learning
+    parser.add_argument('-transfer', dest='transfer', action="store_true",
+                        help='use Imagenet for transfer learning')
+    parser.add_argument('--src-dataset', default=None, type=str, metavar='FILE.pth',
+                        help='name of checkpoint for transfer loading (default: None)')
     #############
     # for pruning
     parser.add_argument('-P', '--prune', dest='prune', action='store_true',
