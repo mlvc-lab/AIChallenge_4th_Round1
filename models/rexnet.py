@@ -135,16 +135,14 @@ class RexNetV1(nn.Module):
 
         features.append(nn.AdaptiveAvgPool2d(1))
         self.features = nn.Sequential(*features)
-
-        self.dropout = nn.Dropout(dropout_ratio)
-        self.fc = nn.Linear(pen_channels, classes)
+        self.output = nn.Sequential(
+            nn.Dropout(dropout_ratio),
+            nn.Conv2d(pen_channels, classes, 1, bias=True))
 
     def forward(self, x):
         x = self.features(x)
+        x = self.output(x).view(x.size(0), -1)
 
-        x = self.dropout(x)
-        x = torch.flatten(x, 1)
-        x = self.fc(x)
         return x
 
 def rexnet(data='cifar10', **kwargs):
