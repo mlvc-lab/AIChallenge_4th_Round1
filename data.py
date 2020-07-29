@@ -11,7 +11,7 @@ from torchvision.datasets import CIFAR10, CIFAR100, ImageNet, ImageFolder
 from tqdm import tqdm
 
 valid_datasets = [
-    'cifar10', 'cifar100', 'imagenet', "things"
+    'cifar10', 'cifar100', 'imagenet', "thingsv3all", 'thingsv3', 'thingsv4'
 ]
 
 
@@ -117,6 +117,7 @@ def cifar100_loader(batch_size, num_workers, datapath, cuda):
 def imagenet_loader(batch_size, image_size, num_workers, datapath, cuda):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
+                                        
     transform_train = transforms.Compose([
         transforms.RandomResizedCrop(image_size + 32),
         transforms.CenterCrop(image_size),
@@ -161,8 +162,12 @@ def imagenet_loader(batch_size, image_size, num_workers, datapath, cuda):
 
 
 def things_loader(batch_size, image_size, num_workers, datapath, cuda):
-    normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
-                                    std=[0.2087, 0.1992, 0.1988])
+    if datapath in ["/dataset/things_v3_1", "/dataset/things_v3"]:
+        normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
+                                        std=[0.2087, 0.1992, 0.1988])
+    elif datapath in ["/dataset/things_v4"]:
+        normalize = transforms.Normalize(mean=[0.6125, 0.8662, 0.9026],
+                                        std=[1.0819, 1.1660, 1.1882])
 
     transform = transforms.Compose([
         transforms.RandomResizedCrop(image_size),         #crop을 한다음 Resize
@@ -178,17 +183,19 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
     ])
 
     trainset = ImageFolder(str(Path(datapath) / 'train'), transform=transform)
-    valset = ImageFolder(str(Path(datapath) / 'val'), transform=transform_val)
+    #valset = ImageFolder(str(Path(datapath) / 'val'), transform=transform_val)
 
     if cuda:
         train_loader = torch.utils.data.DataLoader(
             trainset,
             batch_size=batch_size, shuffle=True,
             num_workers=num_workers, pin_memory=True, drop_last=True)
+        """
         val_loader = torch.utils.data.DataLoader(
             valset,
             batch_size=batch_size, shuffle=False,
             num_workers=num_workers, pin_memory=True)
+        """
     else:
         train_loader = torch.utils.data.DataLoader(
             trainset,
@@ -199,7 +206,7 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
             batch_size=batch_size, shuffle=False,
             num_workers=num_workers, pin_memory=False)
 
-    return train_loader, val_loader
+    return train_loader, None #val_loader
 
 
 def rm_tree(pth):
@@ -328,9 +335,12 @@ def DataLoader(batch_size, image_size, num_workers, dataset='cifar10', cuda=True
         return cifar100_loader(batch_size, num_workers,"/dataset/CIFAR/cifar-100-python", cuda)
     elif DataSet == 'imagenet':
         return imagenet_loader(batch_size, image_size, num_workers,"/dataset/ImageNet", cuda)
-    elif DataSet == 'things':
+    elif DataSet == 'thingsv3':
         return things_loader(batch_size, image_size, num_workers, "/dataset/things_v3", cuda)
-
+    elif DataSet == 'thingsv3all':
+        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v3_1", cuda)
+    elif DataSet == 'thingsv4':
+        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v4", cuda)
 
 if __name__ == '__main__':
     pass

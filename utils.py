@@ -223,7 +223,8 @@ def get_imagenet_checkpoint(args):
                "efficientnet-b5": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b5.pth",
                "efficientnet-b6": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b6.pth",
                "efficientnet-b7": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b7.pth",
-               "mobilenetv2": "/root/volume/Base/checkpoint/mobilenetv2/imagenet/mobilenetv2.pth"
+               "mobilenetv2": "/root/volume/Base/checkpoint/mobilenetv2/imagenet/mobilenetv2.pth",
+               "mobilenetv3": "/root/volume/Base/checkpoint/mobilenetv3/imagenet/mobilenetv3.pth.tar"
 }
 
     if args.arch == 'rexnet':
@@ -237,6 +238,9 @@ def get_imagenet_checkpoint(args):
 
     elif args.arch == 'mobilenetv2':
         return ckpt_path['mobilenetv2']
+
+    elif args.arch == 'mobilenetv3':
+        return ckpt_path['mobilenetv3']
 
     elif args.arch == 'efficientnet':
         modelname = "efficientnet-b{}".format(args.efficient_type)

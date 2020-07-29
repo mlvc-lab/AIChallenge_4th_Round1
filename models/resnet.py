@@ -334,7 +334,7 @@ def resnet(data='cifar10', **kwargs):
             else:
                 print("no resnet model have {} layers".format(num_layers))
                 exit()
-        elif data in ['things', 'imagenet']:
+        elif data in ['thingsv3', 'thingsv4', 'thingsv3all', 'imagenet']:
             if num_layers in cfgs.keys():
                 block, layers = cfgs[num_layers]
                 return ResNet(block, layers, classnum)

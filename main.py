@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
+from sklearn.metrics import f1_score
 
 # Added for Cut-Mix
 import numpy as np
@@ -76,10 +77,10 @@ def main(args):
         exit()
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=args.lr,
-                          momentum=args.momentum, weight_decay=args.weight_decay,
-                          nesterov=args.nesterov)
-    #optimizer = AdamP(model.parameters(), lr=0.001, betas=(0.9, 0.999), weight_decay=1e-2, nesterov=args.nesterov)
+    #optimizer = optim.SGD(model.parameters(), lr=args.lr,
+    #                      momentum=args.momentum, weight_decay=args.weight_decay,
+    #                      nesterov=args.nesterov)
+    optimizer = AdamP(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=args.weight_decay, nesterov=args.nesterov)
     scheduler = set_scheduler(optimizer, args)
     start_epoch = 0
 
@@ -157,6 +158,11 @@ def main(args):
             elif args.arch == "mobilenetv2":
                 in_channel = model.module.classifier[1].in_features
                 model.module.classifier[1] = nn.Linear(in_channel, target_class_number).cuda()
+            
+            elif args.arch == "mobilenetv3":
+                in_channel = model.module.classifier[1].in_features
+                model.module.classifier[1] = nn.Linear(in_channel, target_class_number).cuda()
+                
             else:
                 print("==> wrong model name input")
                 exit()
@@ -188,6 +194,7 @@ def main(args):
             elapsed_time))
 
         # evaluate on validation set
+        """
         print('===> [ Validation ]')
         start_time = time.time()
         acc1_valid, acc5_valid = validate(args, val_loader, epoch, model, criterion)
@@ -195,17 +202,29 @@ def main(args):
         validate_time += elapsed_time
         print('====> {:.2f} seconds to validate this epoch\n'.format(
             elapsed_time))
-        
+        """
         # learning rate schduling
         scheduler.step()
 
         acc1_train = round(acc1_train.item(), 4)
         acc5_train = round(acc5_train.item(), 4)
-        acc1_valid = round(acc1_valid.item(), 4)
-        acc5_valid = round(acc5_valid.item(), 4)
+        #acc1_valid = round(acc1_valid.item(), 4)
+        #acc5_valid = round(acc5_valid.item(), 4)
 
         # remember best Acc@1 and save checkpoint and summary csv file
         state = model.state_dict()
+        summary = [epoch, acc1_train, acc5_train, 0, 0]
+
+        is_best = acc1_train > best_acc1
+        best_acc1 = max(acc1_train, best_acc1)
+        if is_best:
+            save_model(arch_name, args.dataset, state, timestring)
+            # 실험 정보 저장
+            if epoch == 0:
+                save_config(arch_name, args.dataset, args, timestring)
+                
+        save_summary(arch_name, args.dataset, summary)
+        """
         summary = [epoch, acc1_train, acc5_train, acc1_valid, acc5_valid]
 
         is_best = acc1_valid > best_acc1
@@ -217,7 +236,7 @@ def main(args):
                 save_config(arch_name, args.dataset, args, timestring)
                 
         save_summary(arch_name, args.dataset, summary)
-
+        """
     # calculate time 
     avg_train_time = train_time / (args.epochs - start_epoch)
     avg_valid_time = validate_time / (args.epochs - start_epoch)
@@ -266,7 +285,7 @@ def train(args, train_loader, **kwargs):
         if args.mixed_aug:
             args.data_augmentation = True
             args.aug_type = random.sample(config.aug_type, 1)[0]
-            print('use augmentation type {}'.format(args.aug_type))
+            #print('use augmentation type {}'.format(args.aug_type))
 
         # for Cut-Mix or SaliencyMix
         if args.data_augmentation and (args.aug_type == 'cutmix' or args.aug_type == 'saliencymix'):
@@ -347,6 +366,8 @@ def validate(args, val_loader, epoch, model, criterion):
     model.eval()
 
     with torch.no_grad():
+        output_label = []
+        target_label = []
         end = time.time()
         for i, (input, target) in enumerate(val_loader):
             if args.cuda:
@@ -355,6 +376,11 @@ def validate(args, val_loader, epoch, model, criterion):
             # compute output
             output = model(input)
             loss = criterion(output, target)
+
+            # f1score
+            pred = torch.argmax(output, dim=-1)
+            output_label += pred.detach().cpu().tolist()
+            target_label += target.detach().cpu().tolist()
 
             # measure accuracy and record loss
             acc1, acc5 = accuracy(output, target, topk=(1, 5))
@@ -372,11 +398,14 @@ def validate(args, val_loader, epoch, model, criterion):
 
         print('====> Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
               .format(top1=top1, top5=top5))
+        f1_mean = f1_score(output_label, target_label, average='macro')
+        print('====> mean f1-score: {:.8f}'.format(f1_mean))
 
     # logging at sacred
     ex.log_scalar('test.loss', losses.avg, epoch)
     ex.log_scalar('test.top1', top1.avg.item(), epoch)
     ex.log_scalar('test.top5', top5.avg.item(), epoch)
+    ex.log_scalar('test.f1score', f1_mean, epoch)
 
     return top1.avg, top5.avg
 

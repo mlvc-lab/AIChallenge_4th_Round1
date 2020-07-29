@@ -152,7 +152,7 @@ def rexnet(data='cifar10', **kwargs):
     if args.transfer:
         return RexNetV1(width_mult=width_mult, depth_mult=depth_mult)
     else:
-        if data in ['cifar10', 'cifar100', 'things', 'imagenet']:
+        if data in ['cifar10', 'cifar100', 'thingsv3', 'thingsv4', 'thingsv3all', 'imagenet']:
             return RexNetV1(width_mult=width_mult, depth_mult=depth_mult, classes=classnum)
         else:
             print('wrong dataset name!')

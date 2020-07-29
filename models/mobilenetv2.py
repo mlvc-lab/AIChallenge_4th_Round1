@@ -181,7 +181,7 @@ def mobilenetv2(data='cifar10', **kwargs):
     else:
         if data in ['cifar10', 'cifar100']:
             return MobileNetV2_CIFAR(classnum, width_mult)
-        elif data in ['imagenet', 'things']:
+        elif data in ['imagenet', 'thingsv3', 'thingsv4', 'thingsv3all']:
             return MobileNetV2(classnum, width_mult)
         else:
             print("wrong dataset name!")
