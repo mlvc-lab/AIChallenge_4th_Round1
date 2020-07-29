@@ -20,6 +20,7 @@ Specially, you can train or test on any device (CPU/sinlge GPU/multi GPU) and di
 
 - `config.py`: set configuration
 - `data.py`: data loading
+- `down_ckpt.py`: download pretrained checkpoints
 - `main.py`: main python file for training or testing
 - `models`
   - `__init__.py`
@@ -127,48 +128,44 @@ optional arguments:
 
 ## Training
 
-#### Train a network using default scheduler (stepLR) with multi-GPU
+#### Example codes for training various models
 
 1. train a ResNet-56 model
 
 ```shell
-python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3
+python main.py cifar100 -a resnet --layers 56 -C -g 0 --save best.pth --epochs 300 --batch-size 128 --lr 0.1 --scheduler multistep --milestones 100 200 --gamma 0.1 --optimizer SGD --momentum 0.9 --nesterov --wd 1e-4
 ```
 
 2. train a WideResNet40-4 model with multi-GPU
 
 ```shell
-python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3
+python main.py cifar100 -a wideresnet --layers 40 --width-mult 4 -C -g 0 1
 ```
 
 3. train a MobileNetV2 model
 
 ```shell
-python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3
+python main.py cifar100 -a mobilenetv2 --width-mult 1.0 -C -g 0
 ```
 
 4. train a EfficientNet-B0 model
 
 ```shell
-python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3
+python main.py cifar100 -a efficientnet --model-mult 0 -C -g 0
 ```
 
 5. train a ReXNet model
 
 ```shell
-python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3
-```
---------
-#### Train a network using multi-step scheduler with multi-GPU
-
-```shell
-python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3 --scheduler multistep --milestones 100 150 --gamma 0.1
+python main.py cifar100 -a rexnet --width-mult 1.0 -C -g 0
 ```
 
 ## Test
 
+Evaluate the trained model
+
 ```shell
-python main.py cifar100 -a resnet --layers 56 -C -g 0 1 2 3 -E --ckpt ckpt_best.pth
+python main.py cifar100 -a resnet --layers 56 -C -g 0 --run-type evaluate --load best.pth
 ```
 ----------
 

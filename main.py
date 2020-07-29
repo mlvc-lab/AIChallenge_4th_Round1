@@ -195,7 +195,7 @@ def main(args):
             best_acc1 = max(acc1_valid, best_acc1)
             if is_best:
                 save_model(arch_name, args.dataset, state, args.save)
-            save_summary(arch_name, args.dataset, summary)
+            save_summary(arch_name, args.dataset, args.save.split('.pth')[0], summary)
 
             # for pruning
             if args.prune:

@@ -55,7 +55,7 @@ def save_model(arch_name, dataset, state, ckpt_name='ckpt_best.pth'):
     torch.save(state, model_file)
 
 
-def save_summary(arch_name, dataset, summary):
+def save_summary(arch_name, dataset, name, summary):
     r"""Save summary i.e. top-1/5 validation accuracy in each epoch
     under `summary` directory
     """
@@ -63,7 +63,7 @@ def save_summary(arch_name, dataset, summary):
     dir_path = dir_summary / 'csv'
     dir_path.mkdir(parents=True, exist_ok=True)
 
-    file_name = '{}_{}.csv'.format(arch_name, dataset)
+    file_name = '{}_{}_{}.csv'.format(arch_name, dataset, name)
     file_summ = dir_path / file_name
 
     if summary[0] == 0:
