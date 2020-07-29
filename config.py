@@ -48,6 +48,10 @@ def config():
     parser.add_argument('--width-mult', default=1.0, type=float, metavar='WM',
                         help='width multiplier to thin a network '
                              'uniformly at each layer (default: 1.0)')
+    parser.add_argument('--depth-mult', default=1.0, type=float, metavar='DM',
+                         help='depth multiplier network (rexnet)')
+    parser.add_argument('--model-mult', default=0, type=int,
+                        help="e.g. efficient type (0 : b0, 1 : b1, 2 : b2 ...)")
     # for dataset
     parser.add_argument('--datapath', default='../data', type=str, metavar='PATH',
                         help='where you want to load/save your dataset? (default: ../data)')
@@ -56,7 +60,7 @@ def config():
     # for learning policy
     parser.add_argument('--epochs', default=200, type=int, metavar='N',
                         help='number of total epochs to run (default: 200)')
-    parser.add_argument('-b', '--batch-size', default=256, type=int, metavar='N',
+    parser.add_argument('-b', '--batch-size', default=128, type=int, metavar='N',
                         help='mini-batch size (default: 256), this is the total '
                              'batch size of all GPUs on the current node when '
                              'using Data Parallel')
@@ -101,7 +105,7 @@ def config():
     # for load and save
     parser.add_argument('--load', default=None, type=str, metavar='FILE.pth',
                         help='name of checkpoint for testing model (default: None)')
-    parser.add_argument('--save', default=None, type=str, metavar='FILE.pth',
+    parser.add_argument('--save', default='ckpt.pth', type=str, metavar='FILE.pth',
                         help='name of checkpoint for saving model (default: None)')
     #############
     # for pruning
@@ -140,7 +144,11 @@ def config():
                         help='number of layers in ResNet (default: 56)')    # resnet, wideresnet
     parser.add_argument('--tch-width-mult', default=1.0, type=float, metavar='WM',
                         help='width multiplier to thin a network '
-                             'uniformly at each layer (default: 1.0)')      # wideresnet, mobilenet
+                             'uniformly at each layer (default: 1.0)')      # wideresnet, mobilenetv2, rexnet
+    parser.add_argument('--tch-depth-mult', default=1.0, type=float, metavar='DM',
+                         help='depth multiplier network (rexnet)')              # rexnet
+    parser.add_argument('--tch-model-mult', default=0, type=int,
+                        help="e.g. efficient type (0 : b0, 1 : b1, 2 : b2 ...)")     # efficientnet
     # teacher load
     parser.add_argument('--tch-load', default=None, type=str, metavar='FILE.pth',
                         help='name of checkpoint for teacher model (default: None)')

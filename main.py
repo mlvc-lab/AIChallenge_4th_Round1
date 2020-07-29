@@ -51,31 +51,45 @@ def main(args):
     assert not (args.prune and args.quantize), "You should choose one --prune or --quantize"
     if not args.prune and not args.quantize:  # base
         if not args.distill:    
-            model = models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
-                                               width_mult=args.width_mult)
+            model, image_size = models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
+                                                           width_mult=args.width_mult,
+                                                           depth_mult=args.depth_mult,
+                                                           model_mult=args.model_mult)
         elif args.distill: # for distillation
             model = distillation.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
-                                                            width_mult=args.width_mult)
+                                                            width_mult=args.width_mult,
+                                                            depth_mult=args.depth_mult,
+                                                            model_mult=args.model_mult)
     elif args.prune:    # for pruning
         pruner = pruning.__dict__[args.pruner]
         model = pruning.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
-                                                   width_mult=args.width_mult, mnn=pruner.mnn)
+                                                   width_mult=args.width_mult,
+                                                   depth_mult=args.depth_mult,
+                                                   model_mult=args.model_mult,
+                                                   mnn=pruner.mnn)
     elif args.quantize: # for quantization
         quantizer = quantization.__dict__[args.quantizer]
         model = quantization.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
-                                                        width_mult=args.width_mult, qnn=quantizer.qnn,
+                                                        width_mult=args.width_mult,
+                                                        depth_mult=args.depth_mult,
+                                                        model_mult=args.model_mult,
+                                                        qnn=quantizer.qnn,
                                                         bitw=args.quant_bitw, bita=args.quant_bita,
                                                         qcfg=quantizer.__dict__[args.quant_cfg])
     if args.distill: # for distillation
         teacher_name = set_arch_tch_name(args)
         distiller = distillation.losses.__dict__[args.dist_type]()
-        teacher = distillation.models.__dict__[args.tch_arch](data=args.dataset, num_layers=args.tch_layers,
-                                                              width_mult=args.tch_width_mult)
+        teacher, tch_image_size = distillation.models.__dict__[args.tch_arch](data=args.dataset, num_layers=args.tch_layers,
+                                                                              width_mult=args.tch_width_mult,
+                                                                              depth_mult=args.tch_depth_mult,
+                                                                              model_mult=args.tch_model_mult)
+        assert image_size == tch_image_size, "The image size of student and teach should be the same."
     
-    if model is None:
-        print('==> unavailable model parameters!! exit...\n')
-        exit()
-        
+    assert model is not None, 'Unavailable model parameters!! exit...\n'
+    # for distillation
+    if args.distill:
+        assert teacher is not None, 'Unavailable teacher model parameters!! exit...\n'
+
     # set criterion and optimizer
     criterion = nn.CrossEntropyLoss()
     if args.optimizer == 'SGD':
@@ -84,6 +98,7 @@ def main(args):
                               nesterov=args.nesterov)
     elif args.optimizer == 'AdamW':
         optimizer = optim.Adam(model.parameters(), lr=args.lr,
+                               betas=(args.momentum, 0.999),
                                weight_decay=args.weight_decay)
     scheduler = set_scheduler(optimizer, args)
     
@@ -106,7 +121,7 @@ def main(args):
     print('==> Load data..')
     start_time = time.time()
     train_loader, val_loader = DataLoader(args.batch_size, args.workers,
-                                          args.dataset, args.datapath,
+                                          args.dataset, args.datapath, image_size,
                                           args.cuda)
     elapsed_time = time.time() - start_time
     print('===> Data loading time: {:,}m {:.2f}s'.format(

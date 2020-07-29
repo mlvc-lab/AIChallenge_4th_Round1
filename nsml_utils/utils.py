@@ -13,8 +13,7 @@ from data import TagImageInferenceDataset
 
 def inference(model, test_path: str) -> pd.DataFrame:
     # test dataset
-    testset = TagImageInferenceDataset(root_dir='{}/test_data'.format(test_path),
-                                       transform=test_transform)
+    testset = TagImageInferenceDataset(root_dir='{}/test_data'.format(test_path))
     test_loader = DataLoader(dataset=testset, batch_size=64, shuffle=False)
     
     # device

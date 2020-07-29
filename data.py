@@ -24,7 +24,7 @@ def _verify_dataset(dataset):
     return dataset
 
 
-def cifar10_loader(batch_size, num_workers, datapath, cuda):
+def cifar10_loader(batch_size, num_workers, datapath, image_size=32, cuda=False):
     normalize = transforms.Normalize(
         mean=[0.4914, 0.4822, 0.4465],
         std=[0.2023, 0.1994, 0.2010])
@@ -68,7 +68,7 @@ def cifar10_loader(batch_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
-def cifar100_loader(batch_size, num_workers, datapath, cuda):
+def cifar100_loader(batch_size, num_workers, datapath, image_size=32, cuda=False):
     normalize = transforms.Normalize(
         mean=[0.4914, 0.4822, 0.4465],
         std=[0.2023, 0.1994, 0.2010])
@@ -112,18 +112,18 @@ def cifar100_loader(batch_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
-def imagenet_loader(batch_size, num_workers, datapath, cuda):
+def imagenet_loader(batch_size, num_workers, datapath, image_size=224, cuda=False):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-    transform_train = transforms.Compose([
-        transforms.RandomResizedCrop(224),
+    transform = transforms.Compose([
+        transforms.RandomResizedCrop(image_size),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         normalize,
     ])
     transform_val = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
+        transforms.Resize(image_size + 32),
+        transforms.CenterCrop(image_size),
         transforms.ToTensor(),
         normalize,
     ])
@@ -157,19 +157,22 @@ def imagenet_loader(batch_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
-def things_loader(batch_size, num_workers, datapath, cuda):
-    normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
-                                    std=[0.2087, 0.1992, 0.1988])
+def things_loader(batch_size, num_workers, datapath, image_size=224, cuda=False):
+    # things_v3
+    # normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
+    #                                 std=[0.2087, 0.1992, 0.1988])
+    # things_v4
+    normalize = transforms.Normalize(mean=[0.6125, 0.8662, 0.9026],
+                                     std=[1.0819, 1.1660, 1.1882])
     transform = transforms.Compose([
-        transforms.RandomResizedCrop (256),
-        transforms.CenterCrop(224),
+        transforms.RandomResizedCrop(image_size),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         normalize,
     ])
     transform_val = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
+        transforms.Resize(image_size + 32),
+        transforms.CenterCrop(image_size),
         transforms.ToTensor(),
         normalize,
     ])
@@ -268,18 +271,18 @@ def things_unzip_and_convert(source, target):
     rm_tree(temp)
 
 
-def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', cuda=True):
+def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', image_size=224, cuda=True, **kwargs):
     r"""Dataloader for training/validation
     """
     DataSet = _verify_dataset(dataset)
     if DataSet == 'cifar10':
-        return cifar10_loader(batch_size, num_workers, datapath, cuda)
+        return cifar10_loader(batch_size, num_workers, datapath, image_size, cuda)
     elif DataSet == 'cifar100':
-        return cifar100_loader(batch_size, num_workers, datapath, cuda)
+        return cifar100_loader(batch_size, num_workers, datapath, image_size, cuda)
     elif DataSet == 'imagenet':
-        return imagenet_loader(batch_size, num_workers, datapath, cuda)
+        return imagenet_loader(batch_size, num_workers, datapath, image_size, cuda)
     elif DataSet == 'things':
-        return things_loader(batch_size, num_workers, datapath, cuda)
+        return things_loader(batch_size, num_workers, datapath, image_size, cuda)
 
 
 if __name__ == "__main__":

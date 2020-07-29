@@ -139,7 +139,7 @@ python main.py cifar100 -a resnet --layers 56 -C -g 0 --save best.pth --epochs 3
 2. train a WideResNet40-4 model with multi-GPU
 
 ```shell
-python main.py cifar100 -a wideresnet --layers 40 --width-mult 4 -C -g 0 1
+python main.py cifar100 -a wideresnet --layers 40 --width-mult 4 -C -g 0 1 2 3
 ```
 
 3. train a MobileNetV2 model
@@ -157,7 +157,7 @@ python main.py cifar100 -a efficientnet --model-mult 0 -C -g 0
 5. train a ReXNet model
 
 ```shell
-python main.py cifar100 -a rexnet --width-mult 1.0 -C -g 0
+python main.py cifar100 -a rexnet --width-mult 1.0 --depth-mult 1.0 -C -g 0
 ```
 
 ## Test

@@ -56,8 +56,10 @@ def main():
     args = parser.parse_args()
 
     # set a model
-    model = models.__dict__[args.arch](data='things', num_layers=args.layers, width_mult=args.width_mult,
-        efficient_type=args.model_mult, depth_mult=args.depth_mult)
+    model = models.__dict__[args.arch](data='things', num_layers=args.layers,
+                                       width_mult=args.width_mult,
+                                       depth_mult=args.depth_mult,
+                                       model_mult=args.model_mult)
     
     # set multi-gpu
     if args.cuda:

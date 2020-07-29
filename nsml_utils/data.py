@@ -7,10 +7,13 @@ from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 
 
+normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
+                                 std=[0.2087, 0.1992, 0.1988])
 test_transform = transforms.Compose([
     transforms.Resize((256, 256)),
     transforms.CenterCrop(224),
-    transforms.ToTensor()
+    transforms.ToTensor(),
+    normalize
 ])
 
 

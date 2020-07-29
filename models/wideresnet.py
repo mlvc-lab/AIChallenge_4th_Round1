@@ -225,8 +225,16 @@ def wideresnet(data='cifar10', **kwargs):
         assert (num_layers - 4) % 6 == 0
         n = int((num_layers - 4) / 6)
         layers = [n, n, n]
-        return Wide_ResNet_Cifar(BasicBlock, layers=layers, width_mult=width_mult, num_classes=int(data[5:]))
+        model = Wide_ResNet_Cifar(BasicBlock, layers=layers, width_mult=width_mult, num_classes=int(data[5:]))
+        image_size = 32
     elif data == 'imagenet':
-        return None
+        model = None
+        image_size = None
+    elif data == 'things':
+        model = None
+        image_size = None
     else:
-        return None
+        model = None
+        image_size = None
+
+    return model, image_size

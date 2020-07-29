@@ -217,6 +217,16 @@ def set_arch_name(args):
         arch_name += str(args.layers)
     elif args.arch in ['wideresnet']:
         arch_name += '{}_{}'.format(args.layers, int(args.width_mult))
+    elif args.arch in ['mobilenet', 'mobilenetv2']:
+        if args.width_mult != 1.0:
+            arch_name += 'x{}'.format(args.width_mult)
+    elif args.arch in ['efficientnet']:
+        arch_name += '_b{}'.format(args.model_mult)
+    elif args.arch in ['rexnet']:
+        if args.width_mult != 1.0:
+            arch_name += 'x{}'.format(args.width_mult)
+        if args.depth_mult != 1.0:
+            assert False, "The name for depth multiplier of ReXNet is not specified yet."
 
     return arch_name
 
@@ -229,5 +239,15 @@ def set_arch_tch_name(args):
         arch_tch_name += str(args.tch_layers)
     elif args.tch_arch in ['wideresnet']:
         arch_tch_name += '{}_{}'.format(args.tch_layers, int(args.tch_width_mult))
-
+    elif args.tch_arch in ['mobilenet', 'mobilenetv2']:
+        if args.tch_width_mult != 1.0:
+            arch_tch_name += 'x{}'.format(args.tch_width_mult)
+    elif args.tch_arch in ['efficientnet']:
+        arch_tch_name += '_b{}'.format(args.tch_model_mult)
+    elif args.tch_arch in ['rexnet']:
+        if args.tch_width_mult != 1.0:
+            arch_tch_name += 'x{}'.format(args.tch_width_mult)
+        if args.tch_depth_mult != 1.0:
+            assert False, "The name for depth multiplier of ReXNet is not specified yet."
+    
     return arch_tch_name
