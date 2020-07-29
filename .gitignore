@@ -8,4 +8,4 @@ data/
 checkpoint/
 summary/
 
-run*.sh
+trn*.sh
