@@ -159,7 +159,18 @@ def imagenet_loader(batch_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
+<<<<<<< Updated upstream
 def things_loader(batch_size, num_workers, datapath, cuda):
+=======
+def things_loader(batch_size, image_size, num_workers, datapath, cuda):
+    if datapath in ["/dataset/things_v3_1", "/dataset/things_v3"]:
+        normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
+                                        std=[0.2087, 0.1992, 0.1988])
+    elif datapath in ["/dataset/things_v4"]:
+        normalize = transforms.Normalize(mean=[0.6125, 0.8662, 0.9026],
+                                        std=[1.0819, 1.1660, 1.1882])
+
+>>>>>>> Stashed changes
     transform = transforms.Compose([
         transforms.RandomResizedCrop (256),
         transforms.CenterCrop(224),
@@ -308,11 +319,17 @@ def DataLoader(batch_size, num_workers, dataset='things', datapath='/dataset/thi
     elif DataSet == 'cifar100':
         return cifar100_loader(batch_size, num_workers, datapath, cuda)
     elif DataSet == 'imagenet':
-        return imagenet_loader(batch_size, num_workers, datapath, cuda)
-    elif DataSet == 'things':
-        return things_loader(batch_size, num_workers, datapath, cuda)
+        return imagenet_loader(batch_size, image_size, num_workers,"/dataset/ImageNet", cuda)
+    elif DataSet == 'thingsv3':
+        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v3", cuda)
+    elif DataSet == 'thingsv3all':
+        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v3_1", cuda)
+    elif DataSet == 'thingsv4':
+        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v4", cuda)
 
 
-if __name__ == "__main__":
-    things_unzip_and_convert('F:/src', 'F:/dst')
-    # data_split('/home/kairos/Downloads/things', '/home/kairos/Downloads/things_split')
+if __name__ == '__main__':
+    pass
+    # t_loader, v_loader = DataLoader(64, 224, 4, "things")
+    # print(len(t_loader.dataset.classes))
+    # mean, std = get_params(t_loader)
