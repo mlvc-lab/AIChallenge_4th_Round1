@@ -1,11 +1,18 @@
 import time
+import random
 import pathlib
 from os.path import isfile
+
+import numpy as np
+import cv2
+
+from adamp import AdamP, SGDP
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
+from torch.autograd import Variable
 
 import models
 import config
@@ -15,9 +22,10 @@ import distillation
 from utils import *
 from data import DataLoader
 
-# for ignore ImageNet PIL EXIF UserWarning
+# for ignore ImageNet PIL EXIF UserWarning and ignore transparent images
 import warnings
 warnings.filterwarnings("ignore", "(Possibly )?corrupt EXIF data", UserWarning)
+warnings.filterwarnings("ignore", "(Palette )?images with Transparency", UserWarning)
 
 # for sacred logging
 from sacred import Experiment
@@ -56,10 +64,10 @@ def main(args):
                                                            depth_mult=args.depth_mult,
                                                            model_mult=args.model_mult)
         elif args.distill: # for distillation
-            model = distillation.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
-                                                            width_mult=args.width_mult,
-                                                            depth_mult=args.depth_mult,
-                                                            model_mult=args.model_mult)
+            model, image_size = distillation.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
+                                                                        width_mult=args.width_mult,
+                                                                        depth_mult=args.depth_mult,
+                                                                        model_mult=args.model_mult)
     elif args.prune:    # for pruning
         pruner = pruning.__dict__[args.pruner]
         model = pruning.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
@@ -69,13 +77,13 @@ def main(args):
                                                    mnn=pruner.mnn)
     elif args.quantize: # for quantization
         quantizer = quantization.__dict__[args.quantizer]
-        model = quantization.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
-                                                        width_mult=args.width_mult,
-                                                        depth_mult=args.depth_mult,
-                                                        model_mult=args.model_mult,
-                                                        qnn=quantizer.qnn,
-                                                        bitw=args.quant_bitw, bita=args.quant_bita,
-                                                        qcfg=quantizer.__dict__[args.quant_cfg])
+        model, image_size = quantization.models.__dict__[args.arch](data=args.dataset, num_layers=args.layers,
+                                                                    width_mult=args.width_mult,
+                                                                    depth_mult=args.depth_mult,
+                                                                    model_mult=args.model_mult,
+                                                                    qnn=quantizer.qnn,
+                                                                    bitw=args.quant_bitw, bita=args.quant_bita,
+                                                                    qcfg=quantizer.__dict__[args.quant_cfg])
     if args.distill: # for distillation
         teacher_name = set_arch_tch_name(args)
         distiller = distillation.losses.__dict__[args.dist_type]()
@@ -100,6 +108,15 @@ def main(args):
         optimizer = optim.Adam(model.parameters(), lr=args.lr,
                                betas=(args.momentum, 0.999),
                                weight_decay=args.weight_decay)
+    elif args.optimizer == 'SGDP':
+        optimizer = SGDP(model.parameters(), lr=args.lr,
+                         momentum=args.momentum, weight_decay=args.weight_decay,
+                         nesterov=args.nesterov)
+    elif args.optimizer == 'AdamP':
+        optimizer = AdamP(model.parameters(), lr=args.lr,
+                          betas=(args.momentum, 0.999),
+                          weight_decay=args.weight_decay,
+                          nesterov=args.nesterov)
     scheduler = set_scheduler(optimizer, args)
     
     # set multi-gpu
@@ -130,16 +147,54 @@ def main(args):
 
     # load a pre-trained model
     if args.load is not None:
-        ckpt_file = pathlib.Path('checkpoint') / arch_name / args.dataset / args.load
+        if args.transfer:   # for transfer learning
+            ckpt_file = pathlib.Path('checkpoint') / arch_name / args.src_dataset / args.load
+        else:
+            ckpt_file = pathlib.Path('checkpoint') / arch_name / args.dataset / args.load
         assert isfile(ckpt_file), '==> no checkpoint found \"{}\"'.format(args.load)
 
         print('==> Loading Checkpoint \'{}\''.format(args.load))
-        # check pruning or quantization
-        strict = False if args.prune or args.quantize else True
+        # check pruning or quantization or transfer
+        strict = False if args.prune or args.quantize or args.transfer else True
         # load a checkpoint
         checkpoint = load_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
         print('==> Loaded Checkpoint \'{}\''.format(args.load))
-    
+
+    # for transfer
+    if args.transfer:
+        if args.dataset == 'ciar10':
+            target_class_number = 10
+        elif args.dataset == 'ciar100':
+            target_class_number = 100
+        elif args.dataset == 'imagenet':
+            target_class_number = 1000
+        elif args.dataset == 'things':
+            target_class_number = 41
+        
+        if args.arch == "efficientnet":
+            in_channel = model.module._fc.in_features
+            model.module._fc = nn.Linear(in_channel, target_class_number).cuda()
+
+        elif args.arch == "rexnet":
+            in_channel = model.module.output[1].in_channels
+            model.module.output[1] = nn.Conv2d(in_channel, target_class_number, 1, bias=True).cuda()
+
+        elif args.arch == "resnet":
+            in_channel = model.module.fc.in_features
+            model.module.fc = nn.Linear(in_channel, target_class_number).cuda()
+
+        elif args.arch == "mobilenetv2":
+            in_channel = model.module.classifier[1].in_features
+            model.module.classifier[1] = nn.Linear(in_channel, target_class_number).cuda()
+            
+        elif args.arch == "mobilenetv3":
+            in_channel = model.module.classifier[1].in_features
+            model.module.classifier[1] = nn.Linear(in_channel, target_class_number).cuda()
+                
+        else:
+            assert False, "wrong model name input"
+        print('==> modified for transfer learning')
+
     # for distillation
     if args.distill:
         assert args.tch_load is not None
@@ -308,16 +363,76 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
                     threshold = pruning.get_weight_threshold(model, target_sparsity * 100)
                     pruning.weight_prune(model, threshold)
 
-        # compute output and calculate loss
+        # for data augmentation
+        if args.augmentation:
+            if args.mixed_aug:  # random choice
+                args.aug_type = np.random.choice(['cutmix', 'saliencymix', 'mixup', 'cutout'], 1, p=[0.5, 0.2, 0.1, 0.2])
+                
+            aug_prob = np.random.rand(1)
+            if aug_prob < args.aug_prob:   # do augmentation
+                if args.aug_type == 'cutmix':
+                    # permutations
+                    rand_index = torch.randperm(input.size()[0]).cuda()
+                    # set random variables
+                    lam = np.random.beta(args.aug_beta, args.aug_beta)
+                    bbx1, bby1, bbx2, bby2 = cutmix(input.size(), lam)
+                    # generate mixed input and target
+                    input[:, :, bbx1:bbx2, bby1:bby2] = input[rand_index, :, bbx1:bbx2, bby1:bby2]
+                    target_a = target
+                    target_b = target[rand_index]
+                    # adjust lambda to exactly match pixel ratio
+                    lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (input.size()[-1] * input.size()[-2]))
+
+                elif args.aug_type == 'saliencymix':
+                    # permutations
+                    rand_index = torch.randperm(input.size()[0]).cuda()
+                    # set random variables
+                    lam = np.random.beta(args.aug_beta, args.aug_beta)
+                    bbx1, bby1, bbx2, bby2 = saliencymix(input[rand_index[0]], lam)
+                    # generate mixed input and target
+                    input[:, :, bbx1:bbx2, bby1:bby2] = input[rand_index, :, bbx1:bbx2, bby1:bby2]
+                    target_a = target
+                    target_b = target[rand_index]
+                    # adjust lambda to exactly match pixel ratio
+                    lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (input.size()[-1] * input.size()[-2]))
+
+                elif args.aug_type == 'mixup':
+                    input, target_a, target_b, lam = mixup_data(input, target, args.mixup_alpha, args.cuda)
+                    input, target_a, target_b = map(Variable, (input, target_a, target_b))
+
+                elif args.aug_type == 'cutout':
+                    input = Cutout(args.cut_nholes, args.cut_length).__call__(input)
+        
+        # cal output (normal or distillation)
         if not args.distill:
+            # compute output
             output = model(input)
-            loss = criterion(output, target)
-        elif args.distill:  # for distillation
+        else:
             output, s_features = model(input, args.dist_type)
             t_output, t_features = teacher(input, args.dist_type)
+        
+        # cal ce_loss (normal or two targets)
+        if args.augmentation:
+            if aug_prob < args.aug_prob:
+                if args.aug_type == 'cutmix':
+                    ce_loss = criterion(output, target_a) * lam + criterion(output, target_b) * (1. - lam)
+                elif args.aug_type == 'saliencymix':
+                    ce_loss = criterion(output, target_a) * lam + criterion(output, target_b) * (1. - lam)
+                elif args.aug_type == 'mixup':
+                    ce_loss = mixup_criterion(criterion, output, target_a, target_b, lam)
+                elif args.aug_type == 'cutout':
+                    ce_loss = criterion(output, target)
+            else:
+                ce_loss = criterion(output, target)
+        else:
             ce_loss = criterion(output, target)
+
+        # for distillation to cal distill loss
+        if args.distill:
             loss = distiller.add_dist_loss(ce_loss, s_output=output, t_output=t_output,
                                            s_features=s_features, t_features=t_features)
+        else:
+            loss = ce_loss
 
         # measure accuracy and record loss
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
@@ -431,6 +546,116 @@ def validate(args, val_loader, epoch, model, criterion):
         ex.log_scalar('test.f1', f1.score, epoch)
 
     return top1.avg, top5.avg
+
+
+# Added for Cut-Mix
+def cutmix(size, lam):
+    W = size[2]
+    H = size[3]
+    cut_rat = np.sqrt(1. - lam)
+    cut_w = np.int(W * cut_rat)
+    cut_h = np.int(H * cut_rat)
+
+    # uniform
+    cx = np.random.randint(W)
+    cy = np.random.randint(H)
+
+    bbx1 = np.clip(cx - cut_w // 2, 0, W)
+    bby1 = np.clip(cy - cut_h // 2, 0, H)
+    bbx2 = np.clip(cx + cut_w // 2, 0, W)
+    bby2 = np.clip(cy + cut_h // 2, 0, H)
+
+    return bbx1, bby1, bbx2, bby2
+
+
+def saliencymix(img, lam):
+    size = img.size()
+    W = size[1]
+    H = size[2]
+    cut_rat = np.sqrt(1. - lam)
+    cut_w = np.int(W * cut_rat)
+    cut_h = np.int(H * cut_rat)
+
+    # initialize OpenCV's static fine grained saliency detector and compute the saliency map
+    temp_img = img.cpu().numpy().transpose(1, 2, 0)
+    saliency = cv2.saliency.StaticSaliencyFineGrained_create()
+    (success, saliencyMap) = saliency.computeSaliency(temp_img)
+    saliencyMap = (saliencyMap * 255).astype("uint8")
+
+    maximum_indices = np.unravel_index(np.argmax(saliencyMap, axis=None), saliencyMap.shape)
+    x = maximum_indices[0]
+    y = maximum_indices[1]
+
+    bbx1 = np.clip(x - cut_w // 2, 0, W)
+    bby1 = np.clip(y - cut_h // 2, 0, H)
+    bbx2 = np.clip(x + cut_w // 2, 0, W)
+    bby2 = np.clip(y + cut_h // 2, 0, H)
+
+    return bbx1, bby1, bbx2, bby2
+
+
+# Added for Mixup data augmentation
+def mixup_data(x, y, alpha=1.0, use_cuda=True):
+    '''Returns mixed inputs, pairs of targets, and lambda'''
+    if alpha > 0:
+        lam = np.random.beta(alpha, alpha)
+    else:
+        lam = 1
+
+    batch_size = x.size()[0]
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+
+    mixed_x = lam * x + (1 - lam) * x[index, :]
+    y_a, y_b = y, y[index]
+    return mixed_x, y_a, y_b, lam
+
+
+def mixup_criterion(criterion, pred, y_a, y_b, lam):
+    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
+
+
+class Cutout(object):
+    """Randomly mask out one or more patches from an image.
+
+    Args:
+        n_holes (int): Number of patches to cut out of each image.
+        length (int): The length (in pixels) of each square patch.
+    """
+    def __init__(self, n_holes, length):
+        self.n_holes = n_holes
+        self.length = length
+
+    def __call__(self, img):
+        """
+        Args:
+            img (Tensor): Tensor image of size (C, H, W).
+        Returns:
+            Tensor: Image with n_holes of dimension length x length cut out of it.
+        """
+        h = img.size(2)
+        w = img.size(3)
+
+        mask = np.ones((1, 1, h, w), np.float32)
+
+        for n in range(self.n_holes):
+            y = np.random.randint(h)
+            x = np.random.randint(w)
+
+            y1 = np.clip(y - self.length // 2, 0, h)
+            y2 = np.clip(y + self.length // 2, 0, h)
+            x1 = np.clip(x - self.length // 2, 0, w)
+            x2 = np.clip(x + self.length // 2, 0, w)
+
+            mask[0, 0, y1: y2, x1: x2] = 0.
+
+        #mask = torch.from_numpy(mask)
+        #mask = mask.expand_as(img)
+        img = img * mask
+
+        return img
 
 
 if __name__ == '__main__':

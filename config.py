@@ -86,9 +86,9 @@ def config():
                         help='period of learning rate decay / '
                              'maximum number of iterations for '
                              'cosine annealing scheduler (default: 30)')
-    parser.add_argument('--milestones', metavar='EPOCH', default=[30,80], type=int, nargs='+',
+    parser.add_argument('--milestones', metavar='EPOCH', default=[100,150], type=int, nargs='+',
                         help='list of epoch indices for multi step scheduler '
-                             '(must be increasing) (default: 30 80)')
+                             '(must be increasing) (default: 100 150)')
     parser.add_argument('--gamma', default=0.1, type=float,
                         help='multiplicative factor of learning rate decay (default: 0.1)')
     parser.add_argument('--print-freq', default=100, type=int,
@@ -108,7 +108,7 @@ def config():
     parser.add_argument('--save', default='ckpt.pth', type=str, metavar='FILE.pth',
                         help='name of checkpoint for saving model (default: ckpt.pth)')
     # for transfer Learning
-    parser.add_argument('-transfer', dest='transfer', action="store_true",
+    parser.add_argument('--transfer', dest='transfer', action="store_true",
                         help='use Imagenet for transfer learning')
     parser.add_argument('--src-dataset', default=None, type=str, metavar='FILE.pth',
                         help='name of checkpoint for transfer loading (default: None)')
@@ -157,7 +157,28 @@ def config():
     # teacher load
     parser.add_argument('--tch-load', default=None, type=str, metavar='FILE.pth',
                         help='name of checkpoint for teacher model (default: None)')
-
+    #######################
+    # for Data Augmentation
+    parser.add_argument('--augmentation', default=False, dest='augmentation', action='store_true',
+                        help='Set to apply data augmentation')
+    parser.add_argument('--aug_type', default='cutmix', type=str,
+                        help='type of augmentation: cutmix, saliencymix, cutout and mixup')
+    parser.add_argument('--aug_prob', default=0.0, type=float,
+                        help='cutmix probability')
+    # for Cut-Mix and SaliencyMix
+    parser.add_argument('--aug-beta', default=1.0, type=float,
+                        help='hyperparameter beta for augmentation intensity')
+    # for cutout
+    parser.add_argument('--cut-nholes', type=int, default=1,
+                        help='number of holes to cut out from image')
+    parser.add_argument('--cut-length', type=int, default=16,
+                        help='length of the holes')
+    # for mixup
+    parser.add_argument('--mixup-alpha', default=1., type=float,
+                        help='mixup interpolation coefficient (default: 1)')
+    # mixed aug
+    parser.add_argument('--mixed_aug', dest='mixed_aug', action='store_true',
+                        help='use mixed augmentation')
 
     cfg = parser.parse_args()
     return cfg

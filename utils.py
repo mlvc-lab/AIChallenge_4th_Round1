@@ -166,7 +166,7 @@ class ScoreMeter(object):
     def update(self, output, target):
         pred = torch.argmax(output, dim=-1)
         self.prediction += pred.detach().cpu().tolist()
-        self.label += target.cpu().tolist()
+        self.label += target.detach().cpu().tolist()
 
     def cal_score(self):
         with torch.no_grad():
@@ -246,7 +246,7 @@ def set_arch_tch_name(args):
         arch_tch_name += '_b{}'.format(args.tch_model_mult)
     elif args.tch_arch in ['rexnet']:
         if args.tch_width_mult != 1.0:
-            arch_tch_name += 'x{}'.format(args.tch_width_mult)
+            arch_tch_name += '_{}'.format(args.tch_width_mult)
         if args.tch_depth_mult != 1.0:
             assert False, "The name for depth multiplier of ReXNet is not specified yet."
     

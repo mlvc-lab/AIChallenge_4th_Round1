@@ -20,14 +20,16 @@ class Swish(nn.Module):
 
 def _add_conv(out, in_channels, channels, kernel=1, stride=1, pad=0,
               num_group=1, active=True, relu6=False):
-    out.append(nn.Conv2d(in_channels, channels, kernel, stride, pad, groups=num_group, bias=False))
+    out.append(qnn.QuantConv2d(in_channels, channels, kernel, stride, pad, groups=num_group, bias=False,
+                               nbits=bitw, **qcfg['QuantConv2d']))
     out.append(nn.BatchNorm2d(channels))
     if active:
         out.append(nn.ReLU6(inplace=True) if relu6 else nn.ReLU(inplace=True))
 
 
 def _add_conv_swish(out, in_channels, channels, kernel=1, stride=1, pad=0, num_group=1):
-    out.append(nn.Conv2d(in_channels, channels, kernel, stride, pad, groups=num_group, bias=False))
+    out.append(qnn.QuantConv2d(in_channels, channels, kernel, stride, pad, groups=num_group, bias=False,
+                               nbits=bitw, **qcfg['QuantConv2d']))
     out.append(nn.BatchNorm2d(channels))
     out.append(Swish())
 
@@ -37,10 +39,12 @@ class SE(nn.Module):
         super(SE, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
-            nn.Conv2d(in_channels, channels // se_ratio, kernel_size=1, padding=0),
+            qnn.QuantConv2d(in_channels, channels // se_ratio, kernel_size=1, padding=0,
+                      nbits=bitw, **qcfg['QuantConv2d']),
             nn.BatchNorm2d(channels // se_ratio),
             nn.ReLU(inplace=True),
-            nn.Conv2d(channels // se_ratio, channels, kernel_size=1, padding=0),
+            qnn.QuantConv2d(channels // se_ratio, channels, kernel_size=1, padding=0,
+                            nbits=bitw, **qcfg['QuantConv2d']),
             nn.Sigmoid()
         )
 
@@ -137,7 +141,8 @@ class RexNetV1(nn.Module):
         self.features = nn.Sequential(*features)
         self.output = nn.Sequential(
             nn.Dropout(dropout_ratio),
-            nn.Conv2d(pen_channels, classes, 1, bias=True))
+            qnn.QuantConv2d(pen_channels, classes, 1, bias=True,
+                            nbits=bitw, **qcfg['QuantConv2d']))
 
     def forward(self, x):
         x = self.features(x)
@@ -153,6 +158,20 @@ def rexnet(data='cifar10', **kwargs):
     """
     width_mult = float(kwargs.get('width_mult'))
     depth_mult = float(kwargs.get('depth_mult'))
+
+    # set quantizer
+    global qnn
+    qnn = kwargs.get('qnn')
+    assert qnn is not None, "Please specify proper quantization method"
+    # bitw and bita
+    global bitw
+    bitw = kwargs.get('bitw')
+    global bita
+    bita = kwargs.get('bita')
+    # qcfg
+    global qcfg
+    qcfg = kwargs.get('qcfg')
+    assert qcfg is not None, "Please specify proper quantizer configuration"
     
     if data in ['cifar10', 'cifar100']:
         #return RexNetV1(width_mult=width_mult, depth_mult=depth_mult, classes=int(data[5:]))

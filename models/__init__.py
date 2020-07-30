@@ -4,3 +4,4 @@ from .mobilenet import mobilenet
 from .mobilenetv2 import mobilenetv2
 from .efficientnet import efficientnet
 from .rexnet import rexnet
+from .mobilenetv3 import mobilenetv3

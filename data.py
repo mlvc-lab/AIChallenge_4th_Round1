@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+import random
+import shutil
 from zipfile import ZipFile
 
 from PIL import Image
@@ -7,6 +9,8 @@ import torch.utils.data
 import torchvision.transforms as transforms
 from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder, ImageNet
 from tqdm import tqdm
+
+from augmentation import RandAugment
 
 valid_datasets = [
     'cifar10', 'cifar100', 'imagenet', 'things'
@@ -115,7 +119,7 @@ def cifar100_loader(batch_size, num_workers, datapath, image_size=32, cuda=False
 def imagenet_loader(batch_size, num_workers, datapath, image_size=224, cuda=False):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-    transform = transforms.Compose([
+    transform_train = transforms.Compose([
         transforms.RandomResizedCrop(image_size),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
@@ -158,14 +162,15 @@ def imagenet_loader(batch_size, num_workers, datapath, image_size=224, cuda=Fals
 
 
 def things_loader(batch_size, num_workers, datapath, image_size=224, cuda=False):
-    # things_v3
-    # normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
-    #                                 std=[0.2087, 0.1992, 0.1988])
-    # things_v4
-    normalize = transforms.Normalize(mean=[0.6125, 0.8662, 0.9026],
-                                     std=[1.0819, 1.1660, 1.1882])
-    transform = transforms.Compose([
-        transforms.RandomResizedCrop(image_size),
+    if datapath in ["/dataset/things_v3_1", "/dataset/things_v3"]:
+        normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
+                                        std=[0.2087, 0.1992, 0.1988])
+    elif datapath in ["/dataset/things_v4"]:
+        normalize = transforms.Normalize(mean=[0.6125, 0.8662, 0.9026],
+                                        std=[1.0819, 1.1660, 1.1882])
+
+    transform_train = transforms.Compose([
+        transforms.RandomResizedCrop(image_size),         #crop을 한다음 Resize
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         normalize,
@@ -176,8 +181,11 @@ def things_loader(batch_size, num_workers, datapath, image_size=224, cuda=False)
         transforms.ToTensor(),
         normalize,
     ])
+    
+    # Add RandAugment with N, M(hyperparameter)
+    transform_train.transforms.insert(0, transforms.RandomApply([RandAugment(2, 4)], p=0.05))
 
-    trainset = ImageFolder(str(Path(datapath) / 'train'), transform=transform)
+    trainset = ImageFolder(str(Path(datapath) / 'train'), transform=transform_train)
     valset = ImageFolder(str(Path(datapath) / 'val'), transform=transform_val)
 
     if cuda:
@@ -219,40 +227,32 @@ def things_unzip_and_convert(source, target):
     source = Path(source)
     temp = Path('/tmp/things')
     target = Path(target)
-    train_path = target / 'train'
-    val_path = target / 'val'
 
     # if target.exists():
     #     rm_tree(target)
     if not target.exists():
         target.mkdir()
-    if not train_path.exists():
-        train_path.mkdir()
-    if not val_path.exists():
-        val_path.mkdir()
 
     for zipname in source.glob("*.zip"):
         print(f"zipfile: {zipname}")
+        if zipname.name in ['things_v1.zip', '06_상품.zip']:
+            continue
         with ZipFile(zipname) as z:
             i = 0
             for fname in tqdm(z.namelist()):
                 # print(Path(fname), Path(fname).suffix)
 
-                if Path(fname).suffix != '.JPG':
+                if not Path(fname).suffix in ['.JPG', '.jpg' ]:
                     continue
 
-                if i % 50 == 0:
-                    split = 'train'
-                    if i % 300 == 0:
-                        split = 'val'
-
+                if i % 300 == 0:
                     label = str(Path(fname).parent.name).split('_')[-3]
             
                     # check and make label dir
-                    label_dir = train_path / label
+                    label_dir = target / label
                     if not label_dir.exists():
                         label_dir.mkdir()
-                    label_dir = val_path / label
+                    label_dir = target / label
                     if not label_dir.exists():
                         label_dir.mkdir()
 
@@ -262,13 +262,68 @@ def things_unzip_and_convert(source, target):
                     # resize
                     img = Image.open(temp/fname)
                     img.resize((480, 360))
-                    img.save(Path(target)/split/label/(Path(fname).stem + '.jpg'))
+                    img.save(Path(target)/label/(Path(fname).stem + '.jpg'))
 
                     # delete file
                     (temp / fname).unlink()
-
                 i+=1
     rm_tree(temp)
+
+
+def data_split(source, target):
+    # constant
+    train = 'train'
+    val = 'val'
+
+    # prepare
+    source = Path(source)
+    target = Path(target)
+    if not source.exists():
+        raise FileNotFoundError
+    if not target.exists():
+        target.mkdir()
+
+    train_path = target / train
+    val_path = target / val
+    if not train_path.exists():
+        train_path.mkdir()
+    if not val_path.exists():
+        val_path.mkdir()
+
+    for classname in tqdm(source.iterdir()):
+        if not (train_path / classname.name).exists():
+            (train_path / classname.name).mkdir()
+        if not (val_path / classname.name).exists():
+            (val_path / classname.name).mkdir()
+
+        # split
+        for instance in tqdm(classname.iterdir()):
+            if random.random() > 0.5:
+                # print(str(instance), str(train_path/classname.name/instance.name))
+                shutil.copy(str(instance), str(train_path/classname.name/instance.name))
+            else:
+                shutil.copy(str(instance), str(val_path/classname.name/instance.name))
+                # print(str(instance), str(val_path/classname.name/instance.name))
+
+
+def get_params(dataloader):
+    mean = 0.
+    std = 0.
+    nb_samples = 0.
+
+    #모든 픽셀에 대해서 (H x W) 평균을 낸 다음에 이에 대해서 다 평균을 낸다.
+    for (data, _) in dataloader:
+        batch_samples = data.size(0)
+        data = data.view(batch_samples, data.size(1), -1)
+        mean += data.mean(2).sum(0)
+        std += data.std(2).sum(0)
+        nb_samples += batch_samples
+
+    mean /= nb_samples
+    std /= nb_samples
+    print(f"mean : {mean} , std : {std}")
+
+    return mean, std
 
 
 def DataLoader(batch_size, num_workers, dataset='cifar10', datapath='../data', image_size=224, cuda=True, **kwargs):
