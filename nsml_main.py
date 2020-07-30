@@ -12,6 +12,8 @@ import torch.backends.cudnn as cudnn
 import models
 from utils import *
 
+import quantization
+
 import nsml
 from nsml_utils import *
 
@@ -53,13 +55,33 @@ def main():
     # for nsml submission
     parser.add_argument('--mode', default='train', help='Mode')
     parser.add_argument('--pause', default=0, type=int)
+    # for quantization
+    parser.add_argument('-Q', '--quantize', dest='quantize', action='store_true',
+                        help='If this is set, the model layers are changed to quantized layers.')
+    parser.add_argument('--quantizer', default='lsq', type=str,
+                        help='method of quantization to apply (default: lsq)')
+    parser.add_argument('--quant-bitw', default=8, type=int, metavar='N',
+                        help='number of bits for weights (default: 8)')
+    parser.add_argument('--quant-bita', default=32, type=int, metavar='N',
+                        help='number of bits for activations (default: 32)')
+    parser.add_argument('--quant-cfg', default='base', type=str,
+                        help='name of quantization configuration for each type of layers (default: base)')
     args = parser.parse_args()
 
     # set a model
-    model = models.__dict__[args.arch](data='things', num_layers=args.layers,
-                                       width_mult=args.width_mult,
-                                       depth_mult=args.depth_mult,
-                                       model_mult=args.model_mult)
+    if args.quantize:
+        model, image_size = quantization.models.__dict__[args.arch](data='things', num_layers=args.layers,
+                                                                    width_mult=args.width_mult,
+                                                                    depth_mult=args.depth_mult,
+                                                                    model_mult=args.model_mult,
+                                                                    qnn=quantizer.qnn if args.run_type == 'train' else quantizer.iqnn,
+                                                                    bitw=args.quant_bitw, bita=args.quant_bita,
+                                                                    qcfg=quantizer.__dict__[args.quant_cfg])
+    else:
+        model, image_size = models.__dict__[args.arch](data='things', num_layers=args.layers,
+                                                       width_mult=args.width_mult,
+                                                       depth_mult=args.depth_mult,
+                                                       model_mult=args.model_mult)
     
     # set multi-gpu
     if args.cuda:
@@ -71,10 +93,17 @@ def main():
     
     # load a checkpoint
     ckpt_file = pathlib.Path('checkpoint_nsml') / args.load
-    load_model(model, ckpt_file, args.gpuids[0], args.cuda)
+    strict = False if args.quantize else True
+    if args.quantize:
+        quantization.load_quant_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
+    else:
+        load_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
 
     # bind the loaded model
-    bind_model(model)
+    if args.quantize:
+        bind_quant_model(model)
+    else:
+        bind_model(model)
     nsml.save('submission')
 
     if args.pause:

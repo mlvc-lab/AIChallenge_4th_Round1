@@ -1,4 +1,5 @@
 from .qnn import *
+from .iqnn import *
 
 base = {
     'QuantConv2d': {

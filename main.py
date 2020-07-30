@@ -81,7 +81,7 @@ def main(args):
                                                                     width_mult=args.width_mult,
                                                                     depth_mult=args.depth_mult,
                                                                     model_mult=args.model_mult,
-                                                                    qnn=quantizer.qnn,
+                                                                    qnn=quantizer.qnn if args.run_type == 'train' else quantizer.iqnn,
                                                                     bitw=args.quant_bitw, bita=args.quant_bita,
                                                                     qcfg=quantizer.__dict__[args.quant_cfg])
     if args.distill: # for distillation
@@ -157,7 +157,10 @@ def main(args):
         # check pruning or quantization or transfer
         strict = False if args.prune or args.quantize or args.transfer else True
         # load a checkpoint
-        checkpoint = load_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
+        if args.run_type == 'evaluate' and args.quantize:
+            quantization.load_quant_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
+        else:
+            checkpoint = load_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
         print('==> Loaded Checkpoint \'{}\''.format(args.load))
 
     # for transfer

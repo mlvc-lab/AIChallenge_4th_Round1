@@ -141,8 +141,9 @@ class RexNetV1(nn.Module):
         self.features = nn.Sequential(*features)
         self.output = nn.Sequential(
             nn.Dropout(dropout_ratio),
-            qnn.QuantConv2d(pen_channels, classes, 1, bias=True,
-                            nbits=bitw, **qcfg['QuantConv2d']))
+            nn.Conv2d(pen_channels, classes, 1, bias=True))
+            #qnn.QuantConv2d(pen_channels, classes, 1, bias=True,
+            #                nbits=bitw, **qcfg['QuantConv2d']))
 
     def forward(self, x):
         x = self.features(x)
