@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 
 import nsml
 
-from data import TagImageInferenceDataset
+from .data import TagImageInferenceDataset
 
 
 def inference(model, test_path: str) -> pd.DataFrame:
@@ -18,7 +18,8 @@ def inference(model, test_path: str) -> pd.DataFrame:
     
     # device
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
+    model.eval()
+    
     # results
     y_pred = []
     filename_list = []

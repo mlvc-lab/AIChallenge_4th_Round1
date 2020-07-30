@@ -53,6 +53,8 @@ def main():
     parser.add_argument('--load', default=None, type=str, metavar='FILE.pth',
                         help='name of checkpoint for testing model (default: None)')
     # for nsml submission
+    parser.add_argument('--run-type', default='evaluate', type=str, metavar='TYPE',
+                        help='type of run the main function e.g. train or evaluate (default: train)')
     parser.add_argument('--mode', default='train', help='Mode')
     parser.add_argument('--pause', default=0, type=int)
     # for quantization
