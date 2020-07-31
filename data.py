@@ -186,7 +186,7 @@ def things_loader(batch_size, num_workers, datapath, image_size=224, cuda=False)
     ])
     
     # Add RandAugment with N, M(hyperparameter)
-    transform_train.transforms.insert(0, transforms.RandomApply([RandAugment(2, 4)], p=0.05))
+    transform_train.transforms.insert(0, transforms.RandomApply([RandAugment(2, 4)], p=0.1))
 
     trainset = ImageFolder(str(Path(datapath) / 'train'), transform=transform_train)
     valset = ImageFolder(str(Path(datapath) / 'val'), transform=transform_val)

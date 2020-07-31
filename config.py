@@ -102,6 +102,11 @@ def config():
     # specify run type
     parser.add_argument('--run-type', default='train', type=str, metavar='TYPE',
                         help='type of run the main function e.g. train or evaluate (default: train)')
+    # for ensemble evaluation
+    parser.add_argument('--ensemble', dest='ensemble', action='store_true',
+                        help='If this is set, apply ensemble method for evaluation.')
+    parser.add_argument('--ensemble-loads', metavar='CKPT', default=[], type=str, nargs='+',
+                        help='list of checkpoint files for ensemble method')
     # for load and save
     parser.add_argument('--load', default=None, type=str, metavar='FILE.pth',
                         help='name of checkpoint for testing model (default: None)')

@@ -2,6 +2,7 @@ import time
 import random
 import pathlib
 from os.path import isfile
+import copy
 
 import numpy as np
 import cv2
@@ -10,6 +11,7 @@ from adamp import AdamP, SGDP
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
@@ -146,19 +148,28 @@ def main(args):
     print('===> Data loaded..')
 
     # load a pre-trained model
-    if args.load is not None:
-        if args.transfer:   # for transfer learning
-            ckpt_file = pathlib.Path('checkpoint') / arch_name / args.src_dataset / args.load
-        else:
-            ckpt_file = pathlib.Path('checkpoint') / arch_name / args.dataset / args.load
-        assert isfile(ckpt_file), '==> no checkpoint found \"{}\"'.format(args.load)
+    if args.load is not None or args.ensemble:
+        if not args.ensemble:
+            if args.transfer:   # for transfer learning
+                ckpt_file = pathlib.Path('checkpoint') / arch_name / args.src_dataset / args.load
+            else:
+                ckpt_file = pathlib.Path('checkpoint') / arch_name / args.dataset / args.load
+            assert isfile(ckpt_file), '==> no checkpoint found \"{}\"'.format(args.load)
 
         print('==> Loading Checkpoint \'{}\''.format(args.load))
         # check pruning or quantization or transfer
         strict = False if args.prune or args.quantize or args.transfer else True
         # load a checkpoint
         if args.run_type == 'evaluate' and args.quantize:
-            quantization.load_quant_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
+            if args.ensemble:
+                print('==> Checkpoints for ensemble \'{}\''.format(args.ensemble_loads))
+                assert len(args.ensemble_loads) > 0, "the number of checkpoints should be greater than 1"
+                model = [copy.deepcopy(model) for _ in range(len(args.ensemble_loads))]
+                ckpt_files = [pathlib.Path('checkpoint') / arch_name / args.dataset / args.ensemble_loads[i] for i in range(len(model))]
+                for i in range(len(model)):
+                    quantization.load_quant_model(model[i], ckpt_files[i], main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
+            else:
+                quantization.load_quant_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
         else:
             checkpoint = load_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
         print('==> Loaded Checkpoint \'{}\''.format(args.load))
@@ -312,7 +323,10 @@ def main(args):
         acc5 = round(acc5.item(), 4)
 
         # save the result
-        ckpt_name = '{}-{}-{}'.format(arch_name, args.dataset, args.load[:-4])
+        if args.ensemble:
+            ckpt_name = '{}-{}-{}'.format(arch_name, args.dataset, args.ensemble_loads[0][:-4])
+        else:
+            ckpt_name = '{}-{}-{}'.format(arch_name, args.dataset, args.load[:-4])
         save_eval([ckpt_name, acc1, acc5])
         
         return acc1
@@ -369,7 +383,7 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
         # for data augmentation
         if args.augmentation:
             if args.mixed_aug:  # random choice
-                args.aug_type = np.random.choice(['cutmix', 'saliencymix', 'mixup', 'cutout'], 1, p=[0.5, 0.2, 0.1, 0.2])
+                args.aug_type = np.random.choice(['cutmix', 'saliencymix', 'mixup', 'cutout'], 1, p=[0.4, 0.2, 0.1, 0.3])
                 
             aug_prob = np.random.rand(1)
             if aug_prob < args.aug_prob:   # do augmentation
@@ -498,7 +512,11 @@ def validate(args, val_loader, epoch, model, criterion):
         f1 = ScoreMeter()
 
     # switch to evaluate mode
-    model.eval()
+    if args.ensemble:   # for ensemble
+        for i in range(len(model)):
+            model[i].eval()
+    else:
+        model.eval()
 
     with torch.no_grad():
         end = time.time()
@@ -509,8 +527,13 @@ def validate(args, val_loader, epoch, model, criterion):
                 target = target.cuda(non_blocking=True)
 
             # compute output
-            output = model(input)
-            loss = criterion(output, target)
+            if args.ensemble:
+                output = [k(input) for k in model]
+                loss = torch.mean(torch.stack([criterion(k, target) for k in output]))
+                output = torch.stack([F.softmax(k, dim=1) for k in output]).mean(dim=0)
+            else:
+                output = model(input)
+                loss = criterion(output, target)
 
             # measure accuracy and record loss
             acc1, acc5 = accuracy(output, target, topk=(1, 5))

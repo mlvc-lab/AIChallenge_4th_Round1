@@ -224,7 +224,7 @@ def set_arch_name(args):
         arch_name += '_b{}'.format(args.model_mult)
     elif args.arch in ['rexnet']:
         if args.width_mult != 1.0:
-            arch_name += 'x{}'.format(args.width_mult)
+            arch_name += '_{}'.format(args.width_mult)
         if args.depth_mult != 1.0:
             assert False, "The name for depth multiplier of ReXNet is not specified yet."
 

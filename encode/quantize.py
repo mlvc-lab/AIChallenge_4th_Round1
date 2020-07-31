@@ -52,12 +52,13 @@ def convert_weight_int8(model_dict):
 
 
 if __name__ == '__main__':
+    filename = 'cutmix_0.5_upgrade_tuned.pth'
     # load checkpoint and covert tensor to numpy array
-    model_dict = load_to_dict('rexnet_1.0_quant0.pth')
+    model_dict = load_to_dict(filename)
     
     # quantize all weights to int8
     quant_dict = convert_weight_int8(model_dict)
 
-    save_to_pth(quant_dict, 'rexnet_1.0_quant0_cnvt.pth')
+    save_to_pth(quant_dict, filename.split('.pth')[0] + '_cnvt.pth')
 
     for key in quant_dict.keys(): print(key)

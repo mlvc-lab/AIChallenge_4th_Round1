@@ -57,6 +57,11 @@ def main():
                         help='type of run the main function e.g. train or evaluate (default: train)')
     parser.add_argument('--mode', default='train', help='Mode')
     parser.add_argument('--pause', default=0, type=int)
+    # for ensemble evaluation
+    parser.add_argument('--ensemble', dest='ensemble', action='store_true',
+                        help='If this is set, apply ensemble method for evaluation.')
+    parser.add_argument('--ensemble-loads', metavar='CKPT', default=[], type=str, nargs='+',
+                        help='list of checkpoint files for ensemble method')
     # for quantization
     parser.add_argument('-Q', '--quantize', dest='quantize', action='store_true',
                         help='If this is set, the model layers are changed to quantized layers.')
@@ -97,13 +102,24 @@ def main():
     ckpt_file = pathlib.Path('checkpoint_nsml') / args.load
     strict = False if args.quantize else True
     if args.quantize:
-        quantization.load_quant_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
+        if args.ensemble:
+            print('==> Checkpoints for ensemble \'{}\''.format(args.ensemble_loads))
+            assert len(args.ensemble_loads) > 0, "the number of checkpoints should be greater than 1"
+            model = [copy.deepcopy(model) for _ in range(len(args.ensemble_loads))]
+            ckpt_files = [pathlib.Path('checkpoint_nsml') / args.ensemble_loads[i] for i in range(len(model))]
+            for i in range(len(model)):
+                quantization.load_quant_model(model[i], ckpt_files[i], main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
+        else:
+            quantization.load_quant_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
     else:
         load_model(model, ckpt_file, main_gpu=args.gpuids[0], use_cuda=args.cuda, strict=strict)
 
     # bind the loaded model
     if args.quantize:
-        bind_quant_model(model)
+        if args.ensemble:
+            bind_ensemble_quant_model(model)
+        else:
+            bind_quant_model(model)
     else:
         bind_model(model)
     nsml.save('submission')
