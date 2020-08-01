@@ -168,7 +168,7 @@ def things_loader(batch_size, num_workers, datapath, image_size=224, cuda=False)
     elif datapath in ["/dataset/things_v4", "/dataset/things_v5"]:
         normalize = transforms.Normalize(mean=[0.6125, 0.8662, 0.9026],
                                         std=[1.0819, 1.1660, 1.1882])
-    elif datapath in ["/dataset/things_v5xxxxx"]:
+    elif datapath in ["/dataset/things_v5xxxxxx"]:
         normalize = transforms.Normalize(mean=[0.7473, 0.7185, 0.7083],
                                         std=[0.2307, 0.2395, 0.2436])
 

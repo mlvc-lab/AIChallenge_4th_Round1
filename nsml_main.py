@@ -50,7 +50,7 @@ def main():
                         type=int, nargs='+',
                         help='GPU IDs for using (default: 0)')
     # for load and save
-    parser.add_argument('--load', default=None, type=str, metavar='FILE.pth',
+    parser.add_argument('--load', default='None', type=str, metavar='FILE.pth',
                         help='name of checkpoint for testing model (default: None)')
     # for nsml submission
     parser.add_argument('--run-type', default='evaluate', type=str, metavar='TYPE',
@@ -77,6 +77,7 @@ def main():
 
     # set a model
     if args.quantize:
+        quantizer = quantization.__dict__[args.quantizer]
         model, image_size = quantization.models.__dict__[args.arch](data='things', num_layers=args.layers,
                                                                     width_mult=args.width_mult,
                                                                     depth_mult=args.depth_mult,

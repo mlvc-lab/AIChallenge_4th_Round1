@@ -5,6 +5,7 @@ import numpy as np
 
 import torch
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 
 import nsml
 
@@ -73,7 +74,7 @@ def cast_float32_to_int8(model_dict):
         else:
             if key not in new_dict.keys():
                 new_dict[key] = model_dict[key]
-    return model_dict
+    return new_dict
 
 
 def bind_quant_model(model, **kwargs):
@@ -118,7 +119,7 @@ def inference_ensemble(model, test_path: str) -> pd.DataFrame:
             x = x.to(device)
             
             # for ensemble
-            logits = [k(input) for k in model]
+            logits = [k(x) for k in model]
             prob = torch.stack([F.softmax(k, dim=1) for k in logits]).mean(dim=0)
             pred = torch.argmax(prob, dim=-1)
 

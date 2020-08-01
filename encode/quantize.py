@@ -52,7 +52,7 @@ def convert_weight_int8(model_dict):
 
 
 if __name__ == '__main__':
-    filename = 'cutmix_0.5_upgrade_tuned.pth'
+    filename = 'KDSP_distill_91.37_tuned1.pth'
     # load checkpoint and covert tensor to numpy array
     model_dict = load_to_dict(filename)
     
