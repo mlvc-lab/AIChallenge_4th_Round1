@@ -201,6 +201,7 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
             trainset,
             batch_size=batch_size, shuffle=True,
             num_workers=num_workers, pin_memory=False, drop_last=True)
+
         val_loader = torch.utils.data.DataLoader(
             valset,
             batch_size=batch_size, shuffle=False,
@@ -244,8 +245,8 @@ def things_unzip_and_convert(source, target):
                 if not Path(fname).suffix in ['.JPG', '.jpg' ]:
                     continue
 
-                if i % 300 == 0:
-                    label = str(Path(fname).parent.name).split('_')[-3]
+                if i % 100 == 0:
+                    label = str(Path(fname).parent.name).split('_')[-2]
             
                     # check and make label dir
                     label_dir = target / label
@@ -264,12 +265,19 @@ def things_unzip_and_convert(source, target):
                     img.save(Path(target)/label/(Path(fname).stem + '.jpg'))
 
                     # delete file
-                    (temp / fname).unlink()
+                    # (temp / fname).unlink()
                 i+=1
     rm_tree(temp)
 
 
-def data_split(source, target):
+
+def data_split(source, target, ratio=0.7):
+    """
+    source 데이터를 target 위치에 train, val로 나누는 함수. train val 비율은 대략 ratio : 1-ratio.
+    :param source: split 할 데이터 폴더
+    :param target: split된 데이터를 저장할 위치
+    :param ratio: train set의 비율
+    """
     # constant
     train = 'train'
     val = 'val'
@@ -297,12 +305,10 @@ def data_split(source, target):
 
         # split
         for instance in tqdm(classname.iterdir()):
-            if random.random() > 0.5:
-                # print(str(instance), str(train_path/classname.name/instance.name))
+            if random.random() > ratio:
                 shutil.copy(str(instance), str(train_path/classname.name/instance.name))
             else:
                 shutil.copy(str(instance), str(val_path/classname.name/instance.name))
-                # print(str(instance), str(val_path/classname.name/instance.name))
 
 
 def get_params(dataloader):
@@ -342,8 +348,9 @@ def DataLoader(batch_size, image_size, num_workers, dataset='cifar10', cuda=True
     elif DataSet == 'thingsv4':
         return things_loader(batch_size, image_size, num_workers, "/dataset/things_v4", cuda)
 
+
 if __name__ == '__main__':
     pass
-    #t_loader, v_loader = DataLoader(64, 224, 4, "imagenet", "/dataset/ImageNet")
-    #print(len(t_loader.dataset.classes))
-    #mean, std = get_params(t_loader)
+    # t_loader, v_loader = DataLoader(64, 224, 4, "things")
+    # print(len(t_loader.dataset.classes))
+    # mean, std = get_params(t_loader)
