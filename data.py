@@ -7,11 +7,11 @@ from zipfile import ZipFile
 from PIL import Image
 import torch.utils.data
 import torchvision.transforms as transforms
-from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder, ImageNet
+from torchvision.datasets import CIFAR10, CIFAR100, ImageNet, ImageFolder
 from tqdm import tqdm
 
 valid_datasets = [
-    'cifar10', 'cifar100', 'imagenet', 'things'
+    'cifar10', 'cifar100', 'imagenet', "thingsv3all", 'thingsv3', 'thingsv4'
 ]
 
 
@@ -114,18 +114,20 @@ def cifar100_loader(batch_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
-def imagenet_loader(batch_size, num_workers, datapath, cuda):
+def imagenet_loader(batch_size, image_size, num_workers, datapath, cuda):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
+                                        
     transform_train = transforms.Compose([
-        transforms.RandomResizedCrop(224),
+        transforms.RandomResizedCrop(image_size + 32),
+        transforms.CenterCrop(image_size),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         normalize,
     ])
     transform_val = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
+        transforms.Resize(image_size + 32),
+        transforms.CenterCrop(image_size),
         transforms.ToTensor(),
         normalize,
     ])
@@ -159,9 +161,6 @@ def imagenet_loader(batch_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
-<<<<<<< Updated upstream
-def things_loader(batch_size, num_workers, datapath, cuda):
-=======
 def things_loader(batch_size, image_size, num_workers, datapath, cuda):
     if datapath in ["/dataset/things_v3_1", "/dataset/things_v3"]:
         normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
@@ -170,19 +169,17 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
         normalize = transforms.Normalize(mean=[0.6125, 0.8662, 0.9026],
                                         std=[1.0819, 1.1660, 1.1882])
 
->>>>>>> Stashed changes
     transform = transforms.Compose([
-        transforms.RandomResizedCrop (256),
-        transforms.CenterCrop(224),
+        transforms.RandomResizedCrop(image_size),         #crop을 한다음 Resize
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        # normalize,
+        normalize,
     ])
     transform_val = transforms.Compose([
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
+        transforms.Resize(image_size + 32),
+        transforms.CenterCrop(image_size),
         transforms.ToTensor(),
-        # normalize,
+        normalize,
     ])
 
     trainset = ImageFolder(str(Path(datapath) / 'train'), transform=transform)
@@ -192,16 +189,19 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
         train_loader = torch.utils.data.DataLoader(
             trainset,
             batch_size=batch_size, shuffle=True,
-            num_workers=num_workers, pin_memory=True)
+            num_workers=num_workers, pin_memory=True, drop_last=True)
+
         val_loader = torch.utils.data.DataLoader(
             valset,
             batch_size=batch_size, shuffle=False,
             num_workers=num_workers, pin_memory=True)
+
     else:
         train_loader = torch.utils.data.DataLoader(
             trainset,
             batch_size=batch_size, shuffle=True,
-            num_workers=num_workers, pin_memory=False)
+            num_workers=num_workers, pin_memory=False, drop_last=True)
+
         val_loader = torch.utils.data.DataLoader(
             valset,
             batch_size=batch_size, shuffle=False,
@@ -270,6 +270,7 @@ def things_unzip_and_convert(source, target):
     rm_tree(temp)
 
 
+
 def data_split(source, target, ratio=0.7):
     """
     source 데이터를 target 위치에 train, val로 나누는 함수. train val 비율은 대략 ratio : 1-ratio.
@@ -310,14 +311,34 @@ def data_split(source, target, ratio=0.7):
                 shutil.copy(str(instance), str(val_path/classname.name/instance.name))
 
 
-def DataLoader(batch_size, num_workers, dataset='things', datapath='/dataset/things_v1', cuda=True):
+def get_params(dataloader):
+    mean = 0.
+    std = 0.
+    nb_samples = 0.
+
+    #모든 픽셀에 대해서 (H x W) 평균을 낸 다음에 이에 대해서 다 평균을 낸다.
+    for (data, _) in dataloader:
+        batch_samples = data.size(0)
+        data = data.view(batch_samples, data.size(1), -1)
+        mean += data.mean(2).sum(0)
+        std += data.std(2).sum(0)
+        nb_samples += batch_samples
+
+    mean /= nb_samples
+    std /= nb_samples
+    print(f"mean : {mean} , std : {std}")
+
+    return mean, std
+
+
+def DataLoader(batch_size, image_size, num_workers, dataset='cifar10', cuda=True):
     r"""Dataloader for training/validation
     """
     DataSet = _verify_dataset(dataset)
     if DataSet == 'cifar10':
-        return cifar10_loader(batch_size, num_workers, datapath, cuda)
+        return cifar10_loader(batch_size, num_workers,"/dataset/CIFAR/cifar-10-batches-py", cuda)
     elif DataSet == 'cifar100':
-        return cifar100_loader(batch_size, num_workers, datapath, cuda)
+        return cifar100_loader(batch_size, num_workers,"/dataset/CIFAR/cifar-100-python", cuda)
     elif DataSet == 'imagenet':
         return imagenet_loader(batch_size, image_size, num_workers,"/dataset/ImageNet", cuda)
     elif DataSet == 'thingsv3':
