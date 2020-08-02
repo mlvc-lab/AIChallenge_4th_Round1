@@ -183,19 +183,19 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
     ])
 
     trainset = ImageFolder(str(Path(datapath) / 'train'), transform=transform)
-    #valset = ImageFolder(str(Path(datapath) / 'val'), transform=transform_val)
+    valset = ImageFolder(str(Path(datapath) / 'val'), transform=transform_val)
 
     if cuda:
         train_loader = torch.utils.data.DataLoader(
             trainset,
             batch_size=batch_size, shuffle=True,
             num_workers=num_workers, pin_memory=True, drop_last=True)
-        """
+
         val_loader = torch.utils.data.DataLoader(
             valset,
             batch_size=batch_size, shuffle=False,
             num_workers=num_workers, pin_memory=True)
-        """
+
     else:
         train_loader = torch.utils.data.DataLoader(
             trainset,
@@ -206,7 +206,7 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
             batch_size=batch_size, shuffle=False,
             num_workers=num_workers, pin_memory=False)
 
-    return train_loader, None #val_loader
+    return train_loader, val_loader
 
 
 def rm_tree(pth):

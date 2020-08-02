@@ -45,10 +45,12 @@ def hyperparam():
 @ex.main
 def main(args):
     global arch_name
-    print(args)
     timestring = time.strftime('%Y-%m-%d-%H-%M', time.localtime(time.time()))
     if args.cuda and not torch.cuda.is_available():
         raise Exception('No GPU found, please run without --cuda')
+
+    print(args)
+    print("timestring : {}".format(timestring))
 
     # Data loading
     print('==> Load data..')
@@ -77,10 +79,10 @@ def main(args):
         exit()
 
     criterion = nn.CrossEntropyLoss()
-    #optimizer = optim.SGD(model.parameters(), lr=args.lr,
-    #                      momentum=args.momentum, weight_decay=args.weight_decay,
-    #                      nesterov=args.nesterov)
-    optimizer = AdamP(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=args.weight_decay, nesterov=args.nesterov)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr,
+                          momentum=args.momentum, weight_decay=args.weight_decay,
+                          nesterov=args.nesterov)
+    #optimizer = AdamP(model.parameters(), lr=args.lr, betas=(0.9, 0.999), weight_decay=args.weight_decay, nesterov=args.nesterov)
     scheduler = set_scheduler(optimizer, args)
     start_epoch = 0
 
@@ -99,7 +101,6 @@ def main(args):
     elif args.transfer:
         ckpt_file = get_imagenet_checkpoint(args)
     else:
-        ckpt_dir = None
         ckpt_file = None
 
     # for evaluation
@@ -194,7 +195,6 @@ def main(args):
             elapsed_time))
 
         # evaluate on validation set
-        """
         print('===> [ Validation ]')
         start_time = time.time()
         acc1_valid, acc5_valid = validate(args, val_loader, epoch, model, criterion)
@@ -202,29 +202,17 @@ def main(args):
         validate_time += elapsed_time
         print('====> {:.2f} seconds to validate this epoch\n'.format(
             elapsed_time))
-        """
+
         # learning rate schduling
         scheduler.step()
 
         acc1_train = round(acc1_train.item(), 4)
         acc5_train = round(acc5_train.item(), 4)
-        #acc1_valid = round(acc1_valid.item(), 4)
-        #acc5_valid = round(acc5_valid.item(), 4)
+        acc1_valid = round(acc1_valid.item(), 4)
+        acc5_valid = round(acc5_valid.item(), 4)
 
         # remember best Acc@1 and save checkpoint and summary csv file
         state = model.state_dict()
-        summary = [epoch, acc1_train, acc5_train, 0, 0]
-
-        is_best = acc1_train > best_acc1
-        best_acc1 = max(acc1_train, best_acc1)
-        if is_best:
-            save_model(arch_name, args.dataset, state, timestring)
-            # 실험 정보 저장
-            if epoch == 0:
-                save_config(arch_name, args.dataset, args, timestring)
-                
-        save_summary(arch_name, args.dataset, summary)
-        """
         summary = [epoch, acc1_train, acc5_train, acc1_valid, acc5_valid]
 
         is_best = acc1_valid > best_acc1
@@ -236,7 +224,7 @@ def main(args):
                 save_config(arch_name, args.dataset, args, timestring)
                 
         save_summary(arch_name, args.dataset, summary)
-        """
+
     # calculate time 
     avg_train_time = train_time / (args.epochs - start_epoch)
     avg_valid_time = validate_time / (args.epochs - start_epoch)
