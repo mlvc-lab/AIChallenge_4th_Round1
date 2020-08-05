@@ -46,7 +46,7 @@ class MBConvBlock(nn.Module):
         inp = self._block_args.input_filters  # number of input channels
         oup = self._block_args.input_filters * self._block_args.expand_ratio  # number of output channels
         if self._block_args.expand_ratio != 1:
-            Conv2d = get_same_padding_conv2d(image_size=image_size)
+            Conv2d = get_same_padding_conv2d(image_size=image_size, mnn=mnn)
             self._expand_conv = Conv2d(in_channels=inp, out_channels=oup, kernel_size=1, bias=False)
             self._bn0 = nn.BatchNorm2d(num_features=oup, momentum=self._bn_mom, eps=self._bn_eps)
             # image_size = calculate_output_image_size(image_size, 1) <-- this wouldn't modify image_size
@@ -54,7 +54,7 @@ class MBConvBlock(nn.Module):
         # Depthwise convolution phase
         k = self._block_args.kernel_size
         s = self._block_args.stride
-        Conv2d = get_same_padding_conv2d(image_size=image_size)
+        Conv2d = get_same_padding_conv2d(image_size=image_size, mnn=mnn)
         self._depthwise_conv = Conv2d(
             in_channels=oup, out_channels=oup, groups=oup,  # groups makes it depthwise
             kernel_size=k, stride=s, bias=False)
@@ -63,14 +63,14 @@ class MBConvBlock(nn.Module):
 
         # Squeeze and Excitation layer, if desired
         if self.has_se:
-            Conv2d = get_same_padding_conv2d(image_size=(1,1))
+            Conv2d = get_same_padding_conv2d(image_size=(1,1), mnn=mnn)
             num_squeezed_channels = max(1, int(self._block_args.input_filters * self._block_args.se_ratio))
             self._se_reduce = Conv2d(in_channels=oup, out_channels=num_squeezed_channels, kernel_size=1)
             self._se_expand = Conv2d(in_channels=num_squeezed_channels, out_channels=oup, kernel_size=1)
 
         # Pointwise convolution phase
         final_oup = self._block_args.output_filters
-        Conv2d = get_same_padding_conv2d(image_size=image_size)
+        Conv2d = get_same_padding_conv2d(image_size=image_size, mnn=mnn)
         self._project_conv = Conv2d(in_channels=oup, out_channels=final_oup, kernel_size=1, bias=False)
         self._bn2 = nn.BatchNorm2d(num_features=final_oup, momentum=self._bn_mom, eps=self._bn_eps)
         self._swish = MemoryEfficientSwish()
@@ -155,7 +155,7 @@ class EfficientNet(nn.Module):
 
         # Get stem static or dynamic convolution depending on image size
         image_size = global_params.image_size
-        Conv2d = get_same_padding_conv2d(image_size=image_size)
+        Conv2d = get_same_padding_conv2d(image_size=image_size, mnn=mnn)
 
         # Stem
         in_channels = 3  # rgb
@@ -187,7 +187,7 @@ class EfficientNet(nn.Module):
         # Head
         in_channels = block_args.output_filters  # output of final block
         out_channels = round_filters(1280, self._global_params)
-        Conv2d = get_same_padding_conv2d(image_size=image_size)
+        Conv2d = get_same_padding_conv2d(image_size=image_size, mnn=mnn)
         self._conv_head = Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
         self._bn1 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
 
@@ -271,7 +271,7 @@ class EfficientNet(nn.Module):
 
         return x
 
-    def forward(self, inputs):
+    def _forward_impl(self, x, dist_type=None):
         """EfficientNet's forward function.
            Calls extract_features to extract features, applies final linear layer, and returns logits.
         Args:
@@ -280,15 +280,24 @@ class EfficientNet(nn.Module):
             Output of this model after processing.
         """
         # Convolution layers
-        x = self.extract_features(inputs)
+        x1 = self.extract_features(x)
 
         # Pooling and final linear layer
-        x = self._avg_pooling(x)
+        x = self._avg_pooling(x1)
         x = x.flatten(start_dim=1)
         x = self._dropout(x)
         x = self._fc(x)
 
-        return x
+        if dist_type is None:
+            return x
+        elif dist_type in ['KD']:
+            return x, None
+        elif dist_type in ['SP']:
+            return x, [x1]
+
+    def forward(self, x, dist_type=None, pos_list=[]):
+        assert dist_type not in ['AT', 'OD'], "This model doesn't support the configured distillation method."
+        return self._forward_impl(x, dist_type=dist_type)
 
     @classmethod
     def from_name(cls, model_name, in_channels=3, **override_params):
@@ -379,7 +388,7 @@ class EfficientNet(nn.Module):
             in_channels (int): Input data's channel number.
         """
         if in_channels != 3:
-            Conv2d = get_same_padding_conv2d(image_size = self._global_params.image_size)
+            Conv2d = get_same_padding_conv2d(image_size = self._global_params.image_size, mnn=mnn)
             out_channels = round_filters(32, self._global_params)
             self._conv_stem = Conv2d(in_channels, out_channels, kernel_size=3, stride=2, bias=False)
 
@@ -399,6 +408,11 @@ def efficientnet(data='cifar10', **kwargs):
     #image_size_arr = [224, 240, 260, 300, 380, 456, 528, 600]
 
     model_name = efficient_arr[efficient_type]
+    
+    # set pruner
+    global mnn
+    mnn = kwargs.get('mnn')
+    assert mnn is not None, "Please specify proper pruning method"
 
     if data in ['cifar10', 'cifar100']:
         #return EfficientNet.from_name(model_name, num_classes=int(data[5:]))

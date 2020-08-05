@@ -1,0 +1,3 @@
+[submodule "DeepCABAC"]
+	path = DeepCABAC
+	url = https://github.com/fraunhoferhhi/DeepCABAC.git

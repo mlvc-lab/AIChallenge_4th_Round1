@@ -165,10 +165,10 @@ def things_loader(batch_size, num_workers, datapath, image_size=224, cuda=False)
     if datapath in ["/dataset/things_v3_1", "/dataset/things_v3"]:
         normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
                                         std=[0.2087, 0.1992, 0.1988])
-    elif datapath in ["/dataset/things_v4", "/dataset/things_v5"]:
+    elif datapath in ["/dataset/things_v4"]:
         normalize = transforms.Normalize(mean=[0.6125, 0.8662, 0.9026],
                                         std=[1.0819, 1.1660, 1.1882])
-    elif datapath in ["/dataset/things_v5xxxxxx"]:
+    elif datapath in ["/dataset/things_v5"]:
         normalize = transforms.Normalize(mean=[0.7473, 0.7185, 0.7083],
                                         std=[0.2307, 0.2395, 0.2436])
 
@@ -186,7 +186,7 @@ def things_loader(batch_size, num_workers, datapath, image_size=224, cuda=False)
     ])
     
     # Add RandAugment with N, M(hyperparameter)
-    transform_train.transforms.insert(0, transforms.RandomApply([RandAugment(2, 4)], p=0.1))
+    #transform_train.transforms.insert(0, transforms.RandomApply([RandAugment(2, 4)], p=0.1))
 
     trainset = ImageFolder(str(Path(datapath) / 'train'), transform=transform_train)
     valset = ImageFolder(str(Path(datapath) / 'val'), transform=transform_val)
@@ -195,7 +195,8 @@ def things_loader(batch_size, num_workers, datapath, image_size=224, cuda=False)
         train_loader = torch.utils.data.DataLoader(
             trainset,
             batch_size=batch_size, shuffle=True,
-            num_workers=num_workers, pin_memory=True)
+            num_workers=num_workers, pin_memory=True, drop_last=True)
+
         val_loader = torch.utils.data.DataLoader(
             valset,
             batch_size=batch_size, shuffle=False,
@@ -204,7 +205,8 @@ def things_loader(batch_size, num_workers, datapath, image_size=224, cuda=False)
         train_loader = torch.utils.data.DataLoader(
             trainset,
             batch_size=batch_size, shuffle=True,
-            num_workers=num_workers, pin_memory=False)
+            num_workers=num_workers, pin_memory=False, drop_last=True)
+
         val_loader = torch.utils.data.DataLoader(
             valset,
             batch_size=batch_size, shuffle=False,
@@ -248,8 +250,8 @@ def things_unzip_and_convert(source, target):
                 if not Path(fname).suffix in ['.JPG', '.jpg' ]:
                     continue
 
-                if i % 300 == 0:
-                    label = str(Path(fname).parent.name).split('_')[-3]
+                if i % 100 == 0:
+                    label = str(Path(fname).parent.name).split('_')[-2]
             
                     # check and make label dir
                     label_dir = target / label
@@ -268,12 +270,18 @@ def things_unzip_and_convert(source, target):
                     img.save(Path(target)/label/(Path(fname).stem + '.jpg'))
 
                     # delete file
-                    (temp / fname).unlink()
+                    # (temp / fname).unlink()
                 i+=1
     rm_tree(temp)
 
 
-def data_split(source, target):
+def data_split(source, target, ratio=0.7):
+    """
+    source 데이터를 target 위치에 train, val로 나누는 함수. train val 비율은 대략 ratio : 1-ratio.
+    :param source: split 할 데이터 폴더
+    :param target: split된 데이터를 저장할 위치
+    :param ratio: train set의 비율
+    """
     # constant
     train = 'train'
     val = 'val'
@@ -301,12 +309,10 @@ def data_split(source, target):
 
         # split
         for instance in tqdm(classname.iterdir()):
-            if random.random() > 0.5:
-                # print(str(instance), str(train_path/classname.name/instance.name))
+            if random.random() > ratio:
                 shutil.copy(str(instance), str(train_path/classname.name/instance.name))
             else:
                 shutil.copy(str(instance), str(val_path/classname.name/instance.name))
-                # print(str(instance), str(val_path/classname.name/instance.name))
 
 
 def get_params(dataloader):

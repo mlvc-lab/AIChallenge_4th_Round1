@@ -27,6 +27,7 @@ MONGO_DB = 'aichallenge'
 #MONGO_URI = 'mongodb://mlvc:mlvcdatabase!@mlvc.khu.ac.kr:31912'
 #MONGO_DB = 'training'
 
+aug_type = ['cutmix', 'saliencymix', 'mixup', 'cutout']
 
 def config():
     r"""configuration settings
@@ -129,6 +130,8 @@ def config():
                          help='update frequency')
     parser.add_argument('--prune-rate', dest='prune_rate', default=0.5, type=float,
                          help='pruning rate')
+    parser.add_argument('--prune-imp', dest='prune_imp', default='L1', type=str,
+                         help='Importance Method : L1, L2, grad, syn')
     ##################
     # for quantization
     parser.add_argument('-Q', '--quantize', dest='quantize', action='store_true',

@@ -14,6 +14,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
+
 from torch.autograd import Variable
 
 import models
@@ -328,7 +329,10 @@ def main(args):
         else:
             ckpt_name = '{}-{}-{}'.format(arch_name, args.dataset, args.load[:-4])
         save_eval([ckpt_name, acc1, acc5])
-        
+
+        if args.prune:
+            _,_,sparsity = pruning.cal_sparsity(model)
+            print('Sparsity : {}'.format(sparsity))
         return acc1
     else:
         assert False, 'Unkown --run-type! It should be \{train, evaluate\}.'
@@ -368,7 +372,7 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
             #if args.dataset == 'things':
             #    input = input.cuda(non_blocking=True)
             target = target.cuda(non_blocking=True)
-
+        
         # for pruning
         if args.prune:
             if (globals()['iterations']+1) % args.prune_freq==0 and (epoch+1) <= args.milestones[1]:
@@ -377,8 +381,8 @@ def train(args, train_loader, epoch, model, criterion, optimizer, **kwargs):
                     importance = pruning.get_filter_importance(model)
                     pruning.filter_prune(model, importance, target_sparsity * 100)
                 elif args.prune_type == 'unstructured':
-                    threshold = pruning.get_weight_threshold(model, target_sparsity * 100)
-                    pruning.weight_prune(model, threshold)
+                    threshold = pruning.get_weight_threshold(model, target_sparsity * 100, args)
+                    pruning.weight_prune(model, threshold, args)
 
         # for data augmentation
         if args.augmentation:

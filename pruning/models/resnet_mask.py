@@ -123,10 +123,10 @@ class ResNet(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
-                               bias=False)
-        #self.conv1 = mnn.MaskConv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
-        #                            bias=False)  
+        #self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
+        #                       bias=False)
+        self.conv1 = mnn.MaskConv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
+                                    bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -186,7 +186,6 @@ class ResNet(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
-        x = self.maxpool(x)
 
         x1 = self.layer1(x)
         x2 = self.layer2(x1)
@@ -205,6 +204,7 @@ class ResNet(nn.Module):
             return x, [x1, x2, x3, x4]
 
     def forward(self, x, dist_type=None, pos_list=[]):
+        assert dist_type not in ['OD'], "This model doesn't support the configured distillation method."
         return self._forward_impl(x, dist_type=dist_type)
 
 
@@ -229,10 +229,10 @@ class ResNet_CIFAR(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1,
-                               bias=False)
-        #self.conv1 = mnn.MaskConv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1,
-        #                            bias=False)                               
+        #self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1,
+        #                       bias=False)
+        self.conv1 = mnn.MaskConv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1,
+                                    bias=False)                               
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.layer1 = self._make_layer(block, 16, layers[0])
@@ -308,6 +308,7 @@ class ResNet_CIFAR(nn.Module):
             return x, [x1, x2, x3]
 
     def forward(self, x, dist_type=None, pos_list=[]):
+        assert dist_type not in ['OD'], "This model doesn't support the configured distillation method."
         return self._forward_impl(x, dist_type=dist_type)
 
 
@@ -335,7 +336,6 @@ def resnet(data='cifar10', **kwargs):
         data (str): the name of datasets
     """
     num_layers = str(kwargs.get('num_layers'))
-    width_mult = kwargs.get('width_mult')
 
     # set pruner
     global mnn
@@ -344,14 +344,26 @@ def resnet(data='cifar10', **kwargs):
 
     if data in ['cifar10', 'cifar100']:
         if num_layers in cfgs_cifar.keys():
-            return ResNet_CIFAR(BasicBlock, cfgs_cifar[num_layers], int(data[5:]))
+            model = ResNet_CIFAR(BasicBlock, cfgs_cifar[num_layers], int(data[5:]))
         else:
-            return None
+            model = None
+        image_size = 32
     elif data == 'imagenet':
         if num_layers in cfgs.keys():
             block, layers = cfgs[num_layers]
-            return ResNet(block, layers, 1000)
+            model = ResNet(block, layers, 1000)
         else:
-            return None
+            model = None
+        image_size = 224
+    elif data == 'things':
+        if num_layers in cfgs.keys():
+            block, layers = cfgs[num_layers]
+            model = ResNet(block, layers, 41)
+        else:
+            model = None
+        image_size = 224
     else:
-        return None
+        model = None
+        image_size = None
+
+    return model, image_size

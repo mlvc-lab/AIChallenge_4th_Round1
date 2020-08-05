@@ -53,6 +53,7 @@ GlobalParams.__new__.__defaults__ = (None,) * len(GlobalParams._fields)
 BlockArgs.__new__.__defaults__ = (None,) * len(BlockArgs._fields)
 
 
+
 # An ordinary implementation of Swish function
 class Swish(nn.Module):
     def forward(self, x):
@@ -185,7 +186,7 @@ def calculate_output_image_size(input_image_size, stride):
 # Only when stride equals 1, can the output size be the same as input size.
 # Don't be confused by their function names ! ! !
 
-def get_same_padding_conv2d(image_size=None):
+def get_same_padding_conv2d(image_size=None, mnn=None):
     """Chooses static padding if you have specified an image size, and dynamic padding otherwise.
        Static padding is necessary for ONNX exporting of models.
     Args:
@@ -194,9 +195,9 @@ def get_same_padding_conv2d(image_size=None):
         Conv2dDynamicSamePadding or Conv2dStaticSamePadding.
     """
     if image_size is None:
-        return Conv2dDynamicSamePadding
+        return mnn.MaskConv2dDynamicSamePadding
     else:
-        return partial(Conv2dStaticSamePadding, image_size=image_size)
+        return partial(mnn.MaskConv2dStaticSamePadding, image_size=image_size)
 
 
 class Conv2dDynamicSamePadding(nn.Conv2d):
@@ -219,6 +220,7 @@ class Conv2dDynamicSamePadding(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, dilation=1, groups=1, bias=True):
         super().__init__(in_channels, out_channels, kernel_size, stride, 0, dilation, groups, bias)
         self.stride = self.stride if len(self.stride) == 2 else [self.stride[0]] * 2
+        self.mask = Parameter(torch.ones(self.weight.size()), requires_grad=False)
 
     def forward(self, x):
         ih, iw = x.size()[-2:]
@@ -227,11 +229,10 @@ class Conv2dDynamicSamePadding(nn.Conv2d):
         oh, ow = math.ceil(ih / sh), math.ceil(iw / sw) # change the output size according to stride ! ! !
         pad_h = max((oh - 1) * self.stride[0] + (kh - 1) * self.dilation[0] + 1 - ih, 0)
         pad_w = max((ow - 1) * self.stride[1] + (kw - 1) * self.dilation[1] + 1 - iw, 0)
-        
+        masked_weight = Masker.apply(self.weight, self.mask)
         if pad_h > 0 or pad_w > 0:
             x = F.pad(x, [pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2])
-        return F.conv2d(x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
-
+        return F.conv2d(x, masked_weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
 
 
 class Conv2dStaticSamePadding(nn.Conv2d):
@@ -244,6 +245,7 @@ class Conv2dStaticSamePadding(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, image_size=None, **kwargs):
         super().__init__(in_channels, out_channels, kernel_size, stride, **kwargs)
         self.stride = self.stride if len(self.stride) == 2 else [self.stride[0]] * 2
+        self.mask = Parameter(torch.ones(self.weight.size()), requires_grad=False)
 
         # Calculate padding based on image size and save it
         assert image_size is not None
@@ -260,7 +262,8 @@ class Conv2dStaticSamePadding(nn.Conv2d):
 
     def forward(self, x):
         x = self.static_padding(x)
-        x = F.conv2d(x, self.weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
+        masked_weight = Masker.apply(self.weight, self.mask)
+        x = F.conv2d(x, masked_weight, self.bias, self.stride, self.padding, self.dilation, self.groups)
         return x
 
 
