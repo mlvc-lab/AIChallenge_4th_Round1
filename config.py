@@ -23,41 +23,43 @@ schedule_types = [
 # sacred setting
 MONGO_URI = 'mongodb://ai:aichallenge!@mlvc.khu.ac.kr:31912/aichallenge'
 MONGO_DB = 'aichallenge'
+
 # previous setting
 #MONGO_URI = 'mongodb://mlvc:mlvcdatabase!@mlvc.khu.ac.kr:31912'
 #MONGO_DB = 'training'
 
+aug_type = ['cutmix', 'saliencymix', 'mixup']
 
 def config():
     r"""configuration settings
     """
     parser = argparse.ArgumentParser(description='AI-Challenge Base Code')
-    parser.add_argument('dataset', metavar='DATA', default='cifar10',
+    parser.add_argument('dataset', metavar='DATA', default='imagenet',
                         choices=dataset_names,
                         help='dataset: ' +
                              ' | '.join(dataset_names) +
-                             ' (default: cifar10)')     
-    # for model architecture
+                             ' (default: imagenet)')
     parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet',
                         choices=model_names,
                         help='model architecture: ' +
                              ' | '.join(model_names) +
                              ' (default: resnet)')
-    parser.add_argument('--layers', default=56, type=int, metavar='N',
+    parser.add_argument('--layers', default=50, type=int, metavar='N',
                         help='number of layers in ResNet (default: 56)')
     parser.add_argument('--width-mult', default=1.0, type=float, metavar='WM',
                         help='width multiplier to thin a network '
                              'uniformly at each layer (default: 1.0)')
-    parser.add_argument('--efficient-type', default=0, type=int, help="select efficient type (0 : b0, 1 : b1, 2 : b2 ...)")
-    # for dataset
-    parser.add_argument('--datapath', default='/dataset/CIFAR', type=str, metavar='PATH',
+
+    parser.add_argument('--depth-mult', default=1.0, type=float, metavar='DM',
+                         help='wepth multiplier network (rexnet)')
+    parser.add_argument('--datapath', default='/dataset/ImageNet', type=str, metavar='PATH',
                         help='where you want to load/save your dataset? (default: ../data)')
     parser.add_argument('-j', '--workers', default=8, type=int, metavar='N',
                         help='number of data loading workers (default: 8)')
     # for learning policy
     parser.add_argument('--epochs', default=200, type=int, metavar='N',
                         help='number of total epochs to run (default: 200)')
-    parser.add_argument('-b', '--batch-size', default=256, type=int, metavar='N',
+    parser.add_argument('-b', '--batch-size', default=128, type=int, metavar='N',
                         help='mini-batch size (default: 256), this is the total '
                              'batch size of all GPUs on the current node when '
                              'using Data Parallel')
@@ -72,28 +74,29 @@ def config():
     parser.add_argument('--nest', '--nesterov', dest='nesterov', action='store_true',
                         help='use nesterov momentum?')
     parser.add_argument('--sched', '--scheduler', dest='scheduler', metavar='TYPE',
-                        default='step', type=str, choices=schedule_types,
+                        default='cosine', type=str, choices=schedule_types,
                         help='scheduler: ' +
                              ' | '.join(schedule_types) +
-                             ' (default: step)')
+                             ' (default: cosine)')
     parser.add_argument('--step-size', dest='step_size', default=30,
                         type=int, metavar='STEP',
                         help='period of learning rate decay / '
                              'maximum number of iterations for '
                              'cosine annealing scheduler (default: 30)')
-    parser.add_argument('--milestones', metavar='EPOCH', default=[30,80], type=int, nargs='+',
+    parser.add_argument('--milestones', metavar='EPOCH', default=[60,120,180], type=int, nargs='+',
                         help='list of epoch indices for multi step scheduler '
                              '(must be increasing) (default: 30 80)')
     parser.add_argument('--gamma', default=0.1, type=float,
                         help='multiplicative factor of learning rate decay (default: 0.1)')
-    parser.add_argument('--print-freq', default=100, type=int,
+    parser.add_argument('-p', '--print-freq', default=10, type=int,
                         metavar='N', help='print frequency (default: 100)')
     # for gpu configuration
     parser.add_argument('-C', '--cuda', dest='cuda', action='store_true',
                         help='use cuda?')
-    parser.add_argument('-g', '--gpuids', metavar='GPU', default=[0],
+    parser.add_argument('-g', '--gpuids', metavar='GPU', default=[0,1,2,3],
                         type=int, nargs='+',
                         help='GPU IDs for using (default: 0)')
+
     # specify run type
     parser.add_argument('--run-type', default='train', type=str, metavar='TYPE',
                         help='type of run the main function e.g. train or evaluate (defulat: train)')
@@ -116,6 +119,37 @@ def config():
                          help='pruning rate') 
     parser.add_argument('--prune-imp', dest='prune_imp', default='L1', type=str,
                          help='Importance Method : L1, L2, grad, syn')
-    
+
+    parser.add_argument('--efficient-type', default=0, type=int, help="select efficient type (0 : b0, 1 : b1, 2 : b2 ...)")
+
+    # transfer Learning
+    parser.add_argument('-transfer', dest='transfer', action="store_true",help='use Imagenet for transfer learning')
+    parser.add_argument('--image-size', default=224, type=int, help="input image size")
+
+    # Added for Data Augmentation
+    parser.add_argument('-D', '--data_augmentation', dest='data_augmentation', action='store_true',
+                        help='Apply data augmentation?')
+    parser.add_argument('--aug_type', default='cutmix', type=str,
+                        help='Augmentation type: cutmix, saliencymix, cutout and mixup')
+    parser.add_argument('--aug_prob', default=1, type=float,
+                        help='cutmix probability')
+
+    # for Cut-Mix and SaliencyMix
+    parser.add_argument('--beta', default=1., type=float,
+                        help='hyperparameter beta')
+
+    # for cutout
+    parser.add_argument('--n_holes', type=int, default=1,
+                        help='number of holes to cut out from image')
+    parser.add_argument('--length', type=int, default=16,
+                        help='length of the holes')
+
+    # for mixup
+    parser.add_argument('--alpha', default=1., type=float,
+                        help='mixup interpolation coefficient (default: 1)')
+
+    # mixed aug
+    parser.add_argument('--mixed_aug', dest='mixed_aug', action='store_true', help='use mixed augmentation')
+
     cfg = parser.parse_args()
     return cfg
