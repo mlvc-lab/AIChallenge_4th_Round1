@@ -47,8 +47,7 @@ optional arguments:
   -h, --help            show this help message and exit
   -a ARCH, --arch ARCH  model architecture: mobilenet | mobilenetv2 | resnet
                         (default: mobilenet)
-  --layers N            number of layers in VGG/ResNet/WideResNet (default:
-                        56)
+  --layers N            number of layers in ResNet (default: 56)
   --width-mult WM       width multiplier to thin a network uniformly at each
                         layer (default: 1.0)
   -o OUT, --out OUT     output filename of pretrained model from our google
