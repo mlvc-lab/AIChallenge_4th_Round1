@@ -12,16 +12,17 @@ from collections import OrderedDict
 import models
 
 
-def load_model(model, ckpt_file, main_gpu, use_cuda: bool=True):
+def load_model(model, ckpt_file, main_gpu, use_cuda: bool=True, strict=True):
     r"""Load model for training, resume training, evaluation,
     quantization and finding similar kernels for new methods
     """
     if use_cuda:
         checkpoint = torch.load(ckpt_file, map_location=lambda storage, loc: storage.cuda(main_gpu))
         try:
-            model.load_state_dict(checkpoint, strict=False)
+            model.load_state_dict(checkpoint, strict)
         except:
-            model.module.load_state_dict(checkpoint, strict=False)
+            model.module.load_state_dict(checkpoint, strict)
+
     else:
         checkpoint = torch.load(ckpt_file, map_location=lambda storage, loc: storage)
         try:
@@ -41,15 +42,17 @@ def load_model(model, ckpt_file, main_gpu, use_cuda: bool=True):
     return checkpoint
 
 
-def save_model(arch_name, dataset, state, timestring):
+
+def save_model(arch_name, dataset, state, ckpt_name='ckpt_best.pth'):
     r"""Save the model (checkpoint) at the training time
     """
-    dir_ckpt = pathlib.Path('/root/volume/Base/checkpoint')
+    dir_ckpt = pathlib.Path('/root/volume/AIChallenge_base/checkpoint')
     dir_path = dir_ckpt / arch_name / dataset
     dir_path.mkdir(parents=True, exist_ok=True)
-    dir_path = dir_path / timestring
-    dir_path.mkdir(parents=True, exist_ok=True)
-    model_file = dir_path / 'ckpt_best.pth'
+
+    if ckpt_name is None:
+        ckpt_name = 'ckpt_best.pth'
+    model_file = dir_path / ckpt_name
     torch.save(state, model_file)
 
             

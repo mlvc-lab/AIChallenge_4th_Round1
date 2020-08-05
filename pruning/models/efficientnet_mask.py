@@ -46,7 +46,7 @@ class MBConvBlock(nn.Module):
         inp = self._block_args.input_filters  # number of input channels
         oup = self._block_args.input_filters * self._block_args.expand_ratio  # number of output channels
         if self._block_args.expand_ratio != 1:
-            Conv2d = get_same_padding_conv2d(image_size=image_size)
+            Conv2d = get_same_padding_conv2d(image_size=image_size, mnn=mnn)
             self._expand_conv = Conv2d(in_channels=inp, out_channels=oup, kernel_size=1, bias=False)
             self._bn0 = nn.BatchNorm2d(num_features=oup, momentum=self._bn_mom, eps=self._bn_eps)
             # image_size = calculate_output_image_size(image_size, 1) <-- this wouldn't modify image_size
@@ -54,7 +54,7 @@ class MBConvBlock(nn.Module):
         # Depthwise convolution phase
         k = self._block_args.kernel_size
         s = self._block_args.stride
-        Conv2d = get_same_padding_conv2d(image_size=image_size)
+        Conv2d = get_same_padding_conv2d(image_size=image_size, mnn=mnn)
         self._depthwise_conv = Conv2d(
             in_channels=oup, out_channels=oup, groups=oup,  # groups makes it depthwise
             kernel_size=k, stride=s, bias=False)
@@ -63,14 +63,14 @@ class MBConvBlock(nn.Module):
 
         # Squeeze and Excitation layer, if desired
         if self.has_se:
-            Conv2d = get_same_padding_conv2d(image_size=(1,1))
+            Conv2d = get_same_padding_conv2d(image_size=(1,1), mnn=mnn)
             num_squeezed_channels = max(1, int(self._block_args.input_filters * self._block_args.se_ratio))
             self._se_reduce = Conv2d(in_channels=oup, out_channels=num_squeezed_channels, kernel_size=1)
             self._se_expand = Conv2d(in_channels=num_squeezed_channels, out_channels=oup, kernel_size=1)
 
         # Pointwise convolution phase
         final_oup = self._block_args.output_filters
-        Conv2d = get_same_padding_conv2d(image_size=image_size)
+        Conv2d = get_same_padding_conv2d(image_size=image_size, mnn=mnn)
         self._project_conv = Conv2d(in_channels=oup, out_channels=final_oup, kernel_size=1, bias=False)
         self._bn2 = nn.BatchNorm2d(num_features=final_oup, momentum=self._bn_mom, eps=self._bn_eps)
         self._swish = MemoryEfficientSwish()
@@ -155,7 +155,7 @@ class EfficientNet(nn.Module):
 
         # Get stem static or dynamic convolution depending on image size
         image_size = global_params.image_size
-        Conv2d = get_same_padding_conv2d(image_size=image_size)
+        Conv2d = get_same_padding_conv2d(image_size=image_size, mnn=mnn)
 
         # Stem
         in_channels = 3  # rgb
@@ -187,7 +187,7 @@ class EfficientNet(nn.Module):
         # Head
         in_channels = block_args.output_filters  # output of final block
         out_channels = round_filters(1280, self._global_params)
-        Conv2d = get_same_padding_conv2d(image_size=image_size)
+        Conv2d = get_same_padding_conv2d(image_size=image_size, mnn=mnn)
         self._conv_head = Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
         self._bn1 = nn.BatchNorm2d(num_features=out_channels, momentum=bn_mom, eps=bn_eps)
 
@@ -379,30 +379,24 @@ class EfficientNet(nn.Module):
             in_channels (int): Input data's channel number.
         """
         if in_channels != 3:
-            Conv2d = get_same_padding_conv2d(image_size = self._global_params.image_size)
+            Conv2d = get_same_padding_conv2d(image_size = self._global_params.image_size, mnn=mnn)
             out_channels = round_filters(32, self._global_params)
             self._conv_stem = Conv2d(in_channels, out_channels, kernel_size=3, stride=2, bias=False)
 
 
 def efficientnet(data='cifar10', **kwargs):
     efficient_type = kwargs.get('efficient_type')
-    args = kwargs.get('args')
-    classnum = kwargs.get('classnum')
-
     efficient_arr = ['efficientnet-b0', 'efficientnet-b1', 'efficientnet-b2','efficientnet-b3', 'efficientnet-b4', 
-    'efficientnet-b5', 'efficientnet-b6','efficientnet-b7']
-
-    if efficient_type > 7 or efficient_type < 0:
-        print('wrong efficient type')
-        exit()
+    'efficientnet-b5', 'efficientnet-b6','efficientnet-b7','efficientnet-b8', 'efficientnet-l2']
 
     efficient_type = efficient_arr[efficient_type]
+    
+    # set pruner
+    global mnn
+    mnn = kwargs.get('mnn')
+    assert mnn is not None, "Please specify proper pruning method"
 
-    if args.transfer:
+    if data in ['cifar10', 'cifar100']:
+        return None
+    elif data =='imagenet':
         return EfficientNet.from_name(efficient_type)
-    else:
-        if data in ['cifar10', 'cifar100', 'thingsv3', 'thingsv4', 'thingsv3all', 'imagenet']:
-            return EfficientNet.from_name(efficient_type, num_classes=classnum)
-        else:
-            print('wrong dataset name!')
-            exit()
