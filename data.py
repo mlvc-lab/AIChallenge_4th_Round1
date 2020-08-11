@@ -11,7 +11,7 @@ from torchvision.datasets import CIFAR10, CIFAR100, ImageNet, ImageFolder
 from tqdm import tqdm
 
 valid_datasets = [
-    'cifar10', 'cifar100', 'imagenet', "thingsv3all", 'thingsv3', 'thingsv4'
+    'cifar10', 'cifar100', 'imagenet', "thingsv3all", 'thingsv3', 'thingsv4', 'imagenet_100'
 ]
 
 
@@ -138,6 +138,49 @@ def imagenet_loader(batch_size, image_size, num_workers, datapath, cuda):
     valset = ImageNet(
         root=datapath, split='val', download=False,
         transform=transform_val)
+
+    if cuda:
+        train_loader = torch.utils.data.DataLoader(
+            trainset,
+            batch_size=batch_size, shuffle=True,
+            num_workers=num_workers, pin_memory=True)
+        val_loader = torch.utils.data.DataLoader(
+            valset,
+            batch_size=batch_size, shuffle=False,
+            num_workers=num_workers, pin_memory=True)
+    else:
+        train_loader = torch.utils.data.DataLoader(
+            trainset,
+            batch_size=batch_size, shuffle=True,
+            num_workers=num_workers, pin_memory=False)
+        val_loader = torch.utils.data.DataLoader(
+            valset,
+            batch_size=batch_size, shuffle=False,
+            num_workers=num_workers, pin_memory=False)
+
+    return train_loader, val_loader
+
+
+def imagenet_100_loader(batch_size, image_size, num_workers, datapath='/dataset/ImageNet_100', cuda=True):
+    normalize = transforms.Normalize(mean=[0.4851, 0.4464, 0.3926],
+                                     std=[0.1394, 0.1378, 0.1355])
+                                        
+    transform_train = transforms.Compose([
+        transforms.RandomResizedCrop(image_size + 32),
+        transforms.CenterCrop(image_size),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        normalize,
+    ])
+    transform_val = transforms.Compose([
+        transforms.Resize(image_size + 32),
+        transforms.CenterCrop(image_size),
+        transforms.ToTensor(),
+        normalize,
+    ])
+
+    trainset = ImageFolder(str(Path(datapath) / 'train'), transform=transform_train)
+    valset = ImageFolder(str(Path(datapath) / 'val'), transform=transform_val)
 
     if cuda:
         train_loader = torch.utils.data.DataLoader(
@@ -347,10 +390,11 @@ def DataLoader(batch_size, image_size, num_workers, dataset='cifar10', cuda=True
         return things_loader(batch_size, image_size, num_workers, "/dataset/things_v3_1", cuda)
     elif DataSet == 'thingsv4':
         return things_loader(batch_size, image_size, num_workers, "/dataset/things_v4", cuda)
-
+    elif DataSet == 'imagenet_100':
+        return imagenet_100_loader(batch_size, image_size, num_workers, "/dataset/ImageNet_100", cuda)
 
 if __name__ == '__main__':
     pass
-    # t_loader, v_loader = DataLoader(64, 224, 4, "things")
+    # t_loader, v_loader = DataLoader(64, 224, 4, "imagenet_100")
     # print(len(t_loader.dataset.classes))
     # mean, std = get_params(t_loader)
