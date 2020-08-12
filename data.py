@@ -26,6 +26,7 @@ def _verify_dataset(dataset):
     return dataset
 
 
+### _dataloader_
 def cifar10_loader(batch_size, num_workers, datapath, cuda):
     normalize = transforms.Normalize(
         mean=[0.4914, 0.4822, 0.4465],
@@ -253,6 +254,31 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
+
+def DataLoader(batch_size, image_size, num_workers, dataset='cifar10', cuda=True):
+    """Dataloader for training/validation
+    """
+    DataSet = _verify_dataset(dataset)
+    if DataSet == 'cifar10':
+        logging.Warning('`image_size` is not using for CIFAR dataset')
+        return cifar10_loader(batch_size, num_workers,"/dataset/CIFAR/cifar-10-batches-py", cuda)
+    elif DataSet == 'cifar100':
+        logging.Warning('`image_size` is not using for CIFAR dataset')
+        return cifar100_loader(batch_size, num_workers,"/dataset/CIFAR/cifar-100-python", cuda)
+    elif DataSet == 'imagenet':
+        return imagenet_loader(batch_size, image_size, num_workers,"/dataset/ImageNet", cuda)
+    elif DataSet == 'thingsv3':
+        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v3", cuda)
+    elif DataSet == 'thingsv3all':
+        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v3_1", cuda)
+    elif DataSet == 'thingsv4':
+        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v4", cuda)
+    elif DataSet == 'imagenet_100':
+        return imagenet_100_loader(batch_size, image_size, num_workers, "/dataset/ImageNet_100", cuda)
+### _dataloader_
+
+
+### things data utils
 def rm_tree(pth):
     pth = Path(pth)
     for child in pth.glob('*'):
@@ -313,7 +339,6 @@ def things_unzip_and_convert(source, target):
     rm_tree(temp)
 
 
-
 def data_split(source, target, ratio=0.7):
     """
     source 데이터를 target 위치에 train, val로 나누는 함수. train val 비율은 대략 ratio : 1-ratio.
@@ -352,8 +377,10 @@ def data_split(source, target, ratio=0.7):
                 shutil.copy(str(instance), str(train_path/classname.name/instance.name))
             else:
                 shutil.copy(str(instance), str(val_path/classname.name/instance.name))
+### _things_data_utils
 
 
+### datset statistics
 def get_params(dataloader):
     mean = 0.
     std = 0.
@@ -372,26 +399,8 @@ def get_params(dataloader):
     print(f"mean : {mean} , std : {std}")
 
     return mean, std
+### datset statistics
 
-
-def DataLoader(batch_size, image_size, num_workers, dataset='cifar10', cuda=True):
-    r"""Dataloader for training/validation
-    """
-    DataSet = _verify_dataset(dataset)
-    if DataSet == 'cifar10':
-        return cifar10_loader(batch_size, num_workers,"/dataset/CIFAR/cifar-10-batches-py", cuda)
-    elif DataSet == 'cifar100':
-        return cifar100_loader(batch_size, num_workers,"/dataset/CIFAR/cifar-100-python", cuda)
-    elif DataSet == 'imagenet':
-        return imagenet_loader(batch_size, image_size, num_workers,"/dataset/ImageNet", cuda)
-    elif DataSet == 'thingsv3':
-        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v3", cuda)
-    elif DataSet == 'thingsv3all':
-        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v3_1", cuda)
-    elif DataSet == 'thingsv4':
-        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v4", cuda)
-    elif DataSet == 'imagenet_100':
-        return imagenet_100_loader(batch_size, image_size, num_workers, "/dataset/ImageNet_100", cuda)
 
 if __name__ == '__main__':
     pass
