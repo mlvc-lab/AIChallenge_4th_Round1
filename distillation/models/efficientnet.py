@@ -65,7 +65,7 @@ class MBConvBlock(nn.Module):
         if self.has_se:
             Conv2d = get_same_padding_conv2d(image_size=(1,1))
             num_squeezed_channels = max(1, int(self._block_args.input_filters * self._block_args.se_ratio))
-            self._se_reduce = Conv2d(in_channels=oup, out_channels=num_squeezed_channels, kernel_size=1)
+            self._se_reduce = Conv2d(in_channels=oup, out_channels=num_squeezed_channels, kernel_size=1)        # custom by pruning
             self._se_expand = Conv2d(in_channels=num_squeezed_channels, out_channels=oup, kernel_size=1)
 
         # Pointwise convolution phase
@@ -271,7 +271,7 @@ class EfficientNet(nn.Module):
 
         return x
 
-    def forward(self, inputs):
+    def _forward_impl(self, x, dist_type=None):
         """EfficientNet's forward function.
            Calls extract_features to extract features, applies final linear layer, and returns logits.
         Args:
@@ -280,15 +280,24 @@ class EfficientNet(nn.Module):
             Output of this model after processing.
         """
         # Convolution layers
-        x = self.extract_features(inputs)
+        x1 = self.extract_features(x)
 
         # Pooling and final linear layer
-        x = self._avg_pooling(x)
+        x = self._avg_pooling(x1)
         x = x.flatten(start_dim=1)
         x = self._dropout(x)
         x = self._fc(x)
 
-        return x
+        if dist_type is None:
+            return x
+        elif dist_type in ['KD']:
+            return x, None
+        elif dist_type in ['SP']:
+            return x, [x1]
+
+    def forward(self, x, dist_type=None, pos_list=[]):
+        assert dist_type not in ['AT', 'OD'], "This model doesn't support the configured distillation method."
+        return self._forward_impl(x, dist_type=dist_type)
 
     @classmethod
     def from_name(cls, model_name, in_channels=3, **override_params):

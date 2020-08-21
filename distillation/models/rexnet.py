@@ -139,11 +139,20 @@ class RexNetV1(nn.Module):
             nn.Dropout(dropout_ratio),
             nn.Conv2d(pen_channels, classes, 1, bias=True))
 
-    def forward(self, x):
-        x = self.features(x)
-        x = self.output(x).view(x.size(0), -1)
+    def _forward_impl(self, x, dist_type=None):
+        x1 = self.features(x)
+        x = self.output(x1).view(x.size(0), -1)
 
-        return x
+        if dist_type is None:
+            return x
+        elif dist_type in ['KD']:
+            return x, None
+        elif dist_type in ['SP']:
+            return x, [x1]
+
+    def forward(self, x, dist_type=None, pos_list=[]):
+        assert dist_type not in ['AT', 'OD'], "This model doesn't support the configured distillation method."
+        return self._forward_impl(x, dist_type=dist_type)
 
 def rexnet(data='cifar10', **kwargs):
     r""" ReXNet models

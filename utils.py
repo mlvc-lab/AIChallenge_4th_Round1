@@ -1,5 +1,4 @@
 import torch
-import yaml
 
 import csv
 import shutil
@@ -8,6 +7,8 @@ from copy import deepcopy
 from os import remove
 from os.path import isfile
 from collections import OrderedDict
+
+from sklearn.metrics import f1_score
 
 import models
 
@@ -22,7 +23,6 @@ def load_model(model, ckpt_file, main_gpu, use_cuda: bool=True, strict=True):
             model.load_state_dict(checkpoint, strict)
         except:
             model.module.load_state_dict(checkpoint, strict)
-
     else:
         checkpoint = torch.load(ckpt_file, map_location=lambda storage, loc: storage)
         try:
@@ -42,11 +42,10 @@ def load_model(model, ckpt_file, main_gpu, use_cuda: bool=True, strict=True):
     return checkpoint
 
 
-
 def save_model(arch_name, dataset, state, ckpt_name='ckpt_best.pth'):
     r"""Save the model (checkpoint) at the training time
     """
-    dir_ckpt = pathlib.Path('/root/volume/AIChallenge_base/checkpoint')
+    dir_ckpt = pathlib.Path('checkpoint')
     dir_path = dir_ckpt / arch_name / dataset
     dir_path.mkdir(parents=True, exist_ok=True)
 
@@ -55,17 +54,8 @@ def save_model(arch_name, dataset, state, ckpt_name='ckpt_best.pth'):
     model_file = dir_path / ckpt_name
     torch.save(state, model_file)
 
-            
-def save_config(arch_name, dataset, args, timestring):
-    dir_ckpt = pathlib.Path('/root/volume/Base/checkpoint')
-    dir_path = dir_ckpt / arch_name / dataset
-    dir_path = dir_path / timestring
-    if args != None:
-        d = vars(args)
-        with open(dir_path / 'config.yml', 'w') as f:
-            yaml.dump(args, f)
 
-def save_summary(arch_name, dataset, summary):
+def save_summary(arch_name, dataset, name, summary):
     r"""Save summary i.e. top-1/5 validation accuracy in each epoch
     under `summary` directory
     """
@@ -73,7 +63,7 @@ def save_summary(arch_name, dataset, summary):
     dir_path = dir_summary / 'csv'
     dir_path.mkdir(parents=True, exist_ok=True)
 
-    file_name = '{}_{}.csv'.format(arch_name, dataset)
+    file_name = '{}_{}_{}.csv'.format(arch_name, dataset, name)
     file_summ = dir_path / file_name
 
     if summary[0] == 0:
@@ -164,6 +154,25 @@ class ProgressMeter(object):
         return '[' + fmt + '/' + fmt.format(num_batches) + ']'
 
 
+class ScoreMeter(object):
+    r"""Stores the ground truth and prediction labels
+    to compute the f1-score (macro)
+    """
+    def __init__(self):
+        self.label = []
+        self.prediction = []
+        self.score = None
+
+    def update(self, output, target):
+        pred = torch.argmax(output, dim=-1)
+        self.prediction += pred.detach().cpu().tolist()
+        self.label += target.detach().cpu().tolist()
+
+    def cal_score(self):
+        with torch.no_grad():
+            self.score = f1_score(self.label, self.prediction, average='macro')
+
+
 def set_scheduler(optimizer, args):
     r"""Sets the learning rate scheduler
     """
@@ -180,6 +189,7 @@ def set_scheduler(optimizer, args):
         exit()
 
     return scheduler
+
 
 def accuracy(output, target, topk=(1,)):
     r"""Computes the accuracy over the $k$ top predictions for the specified values of k
@@ -205,49 +215,39 @@ def set_arch_name(args):
     arch_name = deepcopy(args.arch)
     if args.arch in ['resnet']:
         arch_name += str(args.layers)
+    elif args.arch in ['wideresnet']:
+        arch_name += '{}_{}'.format(args.layers, int(args.width_mult))
+    elif args.arch in ['mobilenet', 'mobilenetv2']:
+        if args.width_mult != 1.0:
+            arch_name += 'x{}'.format(args.width_mult)
+    elif args.arch in ['efficientnet']:
+        arch_name += '_b{}'.format(args.model_mult)
+    elif args.arch in ['rexnet']:
+        if args.width_mult != 1.0:
+            arch_name += '_{}'.format(args.width_mult)
+        if args.depth_mult != 1.0:
+            assert False, "The name for depth multiplier of ReXNet is not specified yet."
 
     return arch_name
 
 
-def get_imagenet_checkpoint(args):
-    ckpt_path = {"rexnet-1.0": "/root/volume/Base/checkpoint/rexnet/imagenet/rexnet-1.0.pth", 
-               "rexnet-1.3": "/root/volume/Base/checkpoint/rexnet/imagenet/rexnet-1.3.pth", 
-               "rexnet-1.5": "/root/volume/Base/checkpoint/rexnet/imagenet/rexnet-1.5.pth",
-               "rexnet-2.0": "/root/volume/Base/checkpoint/rexnet/imagenet/rexnet-2.0.pth",
-               "resnet18": "/root/volume/Base/checkpoint/resnet/imagenet/resnet18.pth",
-               "resnet34": "/root/volume/Base/checkpoint/resnet/imagenet/resnet34.pth",
-               "resnet50": "/root/volume/Base/checkpoint/resnet/imagenet/resnet50.pth",
-               "resnet101": "/root/volume/Base/checkpoint/resnet/imagenet/resnet101.pth",
-               "efficientnet-b0": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b0.pth",
-               "efficientnet-b1": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b1.pth",
-               "efficientnet-b2": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b2.pth",
-               "efficientnet-b3": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b3.pth",
-               "efficientnet-b4": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b4.pth",
-               "efficientnet-b5": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b5.pth",
-               "efficientnet-b6": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b6.pth",
-               "efficientnet-b7": "/root/volume/Base/checkpoint/efficientnet/imagenet/efficientnet-b7.pth",
-               "mobilenetv2": "/root/volume/Base/checkpoint/mobilenetv2/imagenet/mobilenetv2.pth",
-               "mobilenetv3": "/root/volume/Base/checkpoint/mobilenetv3/imagenet/mobilenetv3.pth.tar"
-}
-
-    if args.arch == 'rexnet':
-        if args.depth_mult != 1.0:
-            print("wrong input depth")
-            exit()
-        return ckpt_path['rexnet-{}'.format(args.width_mult)]
-
-    elif args.arch == 'resnet':
-        return ckpt_path['resnet{}'.format(args.layers)]
-
-    elif args.arch == 'mobilenetv2':
-        return ckpt_path['mobilenetv2']
-
-    elif args.arch == 'mobilenetv3':
-        return ckpt_path['mobilenetv3']
-
-    elif args.arch == 'efficientnet':
-        modelname = "efficientnet-b{}".format(args.efficient_type)
-        return ckpt_path[modelname]
-
-    else:
-        print("wrong model name!")
+def set_arch_tch_name(args):
+    r"""Set architecture name
+    """
+    arch_tch_name = deepcopy(args.tch_arch)
+    if args.tch_arch in ['resnet']:
+        arch_tch_name += str(args.tch_layers)
+    elif args.tch_arch in ['wideresnet']:
+        arch_tch_name += '{}_{}'.format(args.tch_layers, int(args.tch_width_mult))
+    elif args.tch_arch in ['mobilenet', 'mobilenetv2']:
+        if args.tch_width_mult != 1.0:
+            arch_tch_name += 'x{}'.format(args.tch_width_mult)
+    elif args.tch_arch in ['efficientnet']:
+        arch_tch_name += '_b{}'.format(args.tch_model_mult)
+    elif args.tch_arch in ['rexnet']:
+        if args.tch_width_mult != 1.0:
+            arch_tch_name += '_{}'.format(args.tch_width_mult)
+        if args.tch_depth_mult != 1.0:
+            assert False, "The name for depth multiplier of ReXNet is not specified yet."
+    
+    return arch_tch_name

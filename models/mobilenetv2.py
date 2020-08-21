@@ -173,16 +173,18 @@ def mobilenetv2(data='cifar10', **kwargs):
         data (str): the name of datasets
     """
     width_mult = kwargs.get('width_mult')
-    args = kwargs.get('args')
-    classnum = kwargs.get('classnum')
 
-    if args.transfer:
-        return MobileNetV2(width_mult=width_mult)
+    if data in ['cifar10', 'cifar100']:
+        model = MobileNetV2_CIFAR(int(data[5:]), width_mult)
+        image_size = 32
+    elif data == 'imagenet':
+        model = MobileNetV2(1000, width_mult)
+        image_size = 224
+    elif data == 'things':
+        model = MobileNetV2(41, width_mult)
+        image_size = 224
     else:
-        if data in ['cifar10', 'cifar100']:
-            return MobileNetV2_CIFAR(classnum, width_mult)
-        elif data in ['imagenet', 'thingsv3', 'thingsv4', 'thingsv3all']:
-            return MobileNetV2(classnum, width_mult)
-        else:
-            print("wrong dataset name!")
-            exit()
+        model = None
+        image_size = None
+
+    return model, image_size

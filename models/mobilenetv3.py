@@ -223,17 +223,24 @@ class MobileNetV3(nn.Module):
 
 
 def mobilenetv3(data='cifar10', **kwargs):
-    width_mult = kwargs.get('width_mult')
-    args = kwargs.get('args')
-    classnum = kwargs.get('classnum')
+    r"""MobileNetV3 models
 
-    if args.transfer:
-        return MobileNetV3(width_mult=width_mult)
+    Args:
+        data (str): the name of datasets
+    """
+    width_mult = kwargs.get('width_mult')
+
+    if data in ['cifar10', 'cifar100']:
+        model = None
+        image_size = 32
+    elif data == 'imagenet':
+        model = MobileNetV3(n_class=1000, width_mult=width_mult)
+        image_size = 224
+    elif data == 'things':
+        model = MobileNetV3(n_class=41, width_mult=width_mult)
+        image_size = 224
     else:
-        if data in ['cifar10', 'cifar100']:
-            return MobileNetV3(n_class=classnum, width_mult=width_mult)
-        elif data in ['imagenet', 'thingsv3', 'thingsv4', 'thingsv3all']:
-            return MobileNetV3(n_class=classnum, width_mult=width_mult)
-        else:
-            print("wrong dataset name!")
-            exit()
+        model = None
+        image_size = None
+
+    return model, image_size

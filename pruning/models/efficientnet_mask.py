@@ -271,7 +271,7 @@ class EfficientNet(nn.Module):
 
         return x
 
-    def forward(self, inputs):
+    def _forward_impl(self, x, dist_type=None):
         """EfficientNet's forward function.
            Calls extract_features to extract features, applies final linear layer, and returns logits.
         Args:
@@ -280,15 +280,24 @@ class EfficientNet(nn.Module):
             Output of this model after processing.
         """
         # Convolution layers
-        x = self.extract_features(inputs)
+        x1 = self.extract_features(x)
 
         # Pooling and final linear layer
-        x = self._avg_pooling(x)
+        x = self._avg_pooling(x1)
         x = x.flatten(start_dim=1)
         x = self._dropout(x)
         x = self._fc(x)
 
-        return x
+        if dist_type is None:
+            return x
+        elif dist_type in ['KD']:
+            return x, None
+        elif dist_type in ['SP']:
+            return x, [x1]
+
+    def forward(self, x, dist_type=None, pos_list=[]):
+        assert dist_type not in ['AT', 'OD'], "This model doesn't support the configured distillation method."
+        return self._forward_impl(x, dist_type=dist_type)
 
     @classmethod
     def from_name(cls, model_name, in_channels=3, **override_params):
@@ -385,11 +394,20 @@ class EfficientNet(nn.Module):
 
 
 def efficientnet(data='cifar10', **kwargs):
-    efficient_type = kwargs.get('efficient_type')
-    efficient_arr = ['efficientnet-b0', 'efficientnet-b1', 'efficientnet-b2','efficientnet-b3', 'efficientnet-b4', 
-    'efficientnet-b5', 'efficientnet-b6','efficientnet-b7','efficientnet-b8', 'efficientnet-l2']
+    r""" EfficientNet models
 
-    efficient_type = efficient_arr[efficient_type]
+    Args:
+        data (str): the name of datasets
+    """
+    
+    efficient_type = int(kwargs.get('model_mult'))
+    assert efficient_type >= 0 or efficient_type <= 7, 'wrong efficient type'
+
+    efficient_arr = ['efficientnet-b0', 'efficientnet-b1', 'efficientnet-b2','efficientnet-b3', 'efficientnet-b4', 
+    'efficientnet-b5', 'efficientnet-b6','efficientnet-b7']
+    #image_size_arr = [224, 240, 260, 300, 380, 456, 528, 600]
+
+    model_name = efficient_arr[efficient_type]
     
     # set pruner
     global mnn
@@ -397,6 +415,17 @@ def efficientnet(data='cifar10', **kwargs):
     assert mnn is not None, "Please specify proper pruning method"
 
     if data in ['cifar10', 'cifar100']:
-        return None
-    elif data =='imagenet':
-        return EfficientNet.from_name(efficient_type)
+        #return EfficientNet.from_name(model_name, num_classes=int(data[5:]))
+        model = None
+        image_size = 32
+    elif data == 'imagenet':
+        model = EfficientNet.from_name(model_name, num_classes=1000)
+        image_size = EfficientNet.get_image_size(model_name)
+    elif data == 'things':
+        model = EfficientNet.from_name(model_name, num_classes=41)
+        image_size = EfficientNet.get_image_size(model_name)
+    else:
+        model = None
+        image_size = None
+
+    return model, image_size

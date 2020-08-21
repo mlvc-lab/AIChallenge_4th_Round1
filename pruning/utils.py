@@ -34,17 +34,18 @@ def get_weight_threshold(model, rate, args):
 def weight_prune(model, threshold, args):
     state = model.state_dict()
     for name, item in model.named_parameters():
-        if len(item.size())==4 and 'mask' not in name:
+        if 'weight' in name:
             key = name.replace('weight', 'mask')
-            if args.prune_imp == 'L1':
-                mat = item.data.abs()
-            elif args.prune_imp == 'L2':
-                mat = item.data.pow(2)
-            elif args.prune_imp == 'grad':
-                mat = item.grad.data.abs()
-            elif args.prune_imp == 'syn':
-                mat = (item.data * item.grad.data).abs()
-            state[key].data.copy_(torch.gt(mat, threshold).float())
+            if key in state.keys():
+                if args.prune_imp == 'L1':
+                    mat = item.data.abs()
+                elif args.prune_imp == 'L2':
+                    mat = item.data.pow(2)
+                elif args.prune_imp == 'grad':
+                    mat = item.grad.data.abs()
+                elif args.prune_imp == 'syn':
+                    mat = (item.data * item.grad.data).abs()
+                state[key].data.copy_(torch.gt(mat, threshold).float())
 
 
 def get_filter_importance(model):
@@ -89,6 +90,7 @@ def filter_prune(model, importance, rate):
 def cal_sparsity(model):
     mask_nonzeros = 0
     mask_length = 0
+    total_weights = 0
 
     for name, item in model.module.named_parameters():
         if 'mask' in name:
@@ -96,10 +98,24 @@ def cal_sparsity(model):
             np_flatten = flatten.cpu().numpy()
 
             mask_nonzeros += np.count_nonzero(np_flatten)
-            mask_length += item.size(0) * item.size(1) * item.size(2) * item.size(3)
+            mask_length += item.numel()
 
-    num_total = mask_length
+        if 'weight' in name or 'bias' in name:
+            total_weights += item.numel()
+
     num_zero = mask_length - mask_nonzeros
-    sparsity = (num_zero / num_total) * 100
-    return num_total, num_zero, sparsity
+    sparsity = (num_zero / total_weights) * 100
+    return total_weights, num_zero, sparsity
 
+'''
+def weightcopy(fullmodel, maskmodel):
+    for (fname, fitem), (mname, mitem) in zip(fullmodel.module.named_parameters(), maskmodel.module.named_parameters()):
+        if 'mask' not in mname:
+            mitem.data = fitem.data.clone()
+'''
+'''
+def gradcopy(fullmodel, maskmodel):
+    for (fname, fitem), (mname, mitem) in zip(fullmodel.module.named_parameters(), maskmodel.module.named_parameters()):
+        if 'mask' not in fname:
+            fitem.grad = mitem.grad.clone()
+'''

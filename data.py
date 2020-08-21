@@ -7,8 +7,10 @@ from zipfile import ZipFile
 from PIL import Image
 import torch.utils.data
 import torchvision.transforms as transforms
-from torchvision.datasets import CIFAR10, CIFAR100, ImageNet, ImageFolder
+from torchvision.datasets import CIFAR10, CIFAR100, ImageFolder, ImageNet
 from tqdm import tqdm
+
+from augmentation import RandAugment
 
 valid_datasets = [
     'cifar10', 'cifar100', 'imagenet', "thingsv3all", 'thingsv3', 'thingsv4', 'imagenet_100'
@@ -26,8 +28,7 @@ def _verify_dataset(dataset):
     return dataset
 
 
-### _dataloader_
-def cifar10_loader(batch_size, num_workers, datapath, cuda):
+def cifar10_loader(batch_size, num_workers, datapath, image_size=32, cuda=False):
     normalize = transforms.Normalize(
         mean=[0.4914, 0.4822, 0.4465],
         std=[0.2023, 0.1994, 0.2010])
@@ -71,7 +72,7 @@ def cifar10_loader(batch_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
-def cifar100_loader(batch_size, num_workers, datapath, cuda):
+def cifar100_loader(batch_size, num_workers, datapath, image_size=32, cuda=False):
     normalize = transforms.Normalize(
         mean=[0.4914, 0.4822, 0.4465],
         std=[0.2023, 0.1994, 0.2010])
@@ -115,13 +116,11 @@ def cifar100_loader(batch_size, num_workers, datapath, cuda):
     return train_loader, val_loader
 
 
-def imagenet_loader(batch_size, image_size, num_workers, datapath, cuda):
+def imagenet_loader(batch_size, num_workers, datapath, image_size=224, cuda=False):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-                                        
     transform_train = transforms.Compose([
-        transforms.RandomResizedCrop(image_size + 32),
-        transforms.CenterCrop(image_size),
+        transforms.RandomResizedCrop(image_size),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         normalize,
@@ -204,16 +203,18 @@ def imagenet_100_loader(batch_size, image_size, num_workers, datapath='/dataset/
 
     return train_loader, val_loader
 
-
-def things_loader(batch_size, image_size, num_workers, datapath, cuda):
+def things_loader(batch_size, num_workers, datapath, image_size=224, cuda=False):
     if datapath in ["/dataset/things_v3_1", "/dataset/things_v3"]:
         normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
                                         std=[0.2087, 0.1992, 0.1988])
     elif datapath in ["/dataset/things_v4"]:
         normalize = transforms.Normalize(mean=[0.6125, 0.8662, 0.9026],
                                         std=[1.0819, 1.1660, 1.1882])
+    elif datapath in ["/dataset/things_v5"]:
+        normalize = transforms.Normalize(mean=[0.7473, 0.7185, 0.7083],
+                                        std=[0.2307, 0.2395, 0.2436])
 
-    transform = transforms.Compose([
+    transform_train = transforms.Compose([
         transforms.RandomResizedCrop(image_size),         #crop을 한다음 Resize
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
@@ -225,8 +226,11 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
         transforms.ToTensor(),
         normalize,
     ])
+    
+    # Add RandAugment with N, M(hyperparameter)
+    #transform_train.transforms.insert(0, transforms.RandomApply([RandAugment(2, 4)], p=0.1))
 
-    trainset = ImageFolder(str(Path(datapath) / 'train'), transform=transform)
+    trainset = ImageFolder(str(Path(datapath) / 'train'), transform=transform_train)
     valset = ImageFolder(str(Path(datapath) / 'val'), transform=transform_val)
 
     if cuda:
@@ -239,7 +243,6 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
             valset,
             batch_size=batch_size, shuffle=False,
             num_workers=num_workers, pin_memory=True)
-
     else:
         train_loader = torch.utils.data.DataLoader(
             trainset,
@@ -255,16 +258,16 @@ def things_loader(batch_size, image_size, num_workers, datapath, cuda):
 
 
 
-def DataLoader(batch_size, image_size, num_workers, dataset='cifar10', cuda=True):
+def DataLoader(batch_size, dataset='cifar10', num_workers=4, image_size=224, cuda=True):
     """Dataloader for training/validation
     """
     DataSet = _verify_dataset(dataset)
     if DataSet == 'cifar10':
         logging.Warning('`image_size` is not using for CIFAR dataset')
-        return cifar10_loader(batch_size, num_workers,"/dataset/CIFAR/cifar-10-batches-py", cuda)
+        return cifar10_loader(batch_size, image_size, num_workers, "/dataset/CIFAR/cifar-10-batches-py", cuda)
     elif DataSet == 'cifar100':
         logging.Warning('`image_size` is not using for CIFAR dataset')
-        return cifar100_loader(batch_size, num_workers,"/dataset/CIFAR/cifar-100-python", cuda)
+        return cifar100_loader(batch_size, image_size, num_workers , "/dataset/CIFAR/cifar-100-python", cuda)
     elif DataSet == 'imagenet':
         return imagenet_loader(batch_size, image_size, num_workers,"/dataset/ImageNet", cuda)
     elif DataSet == 'thingsv3':

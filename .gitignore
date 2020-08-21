@@ -6,4 +6,6 @@ models/__pycache__/
 
 data/
 checkpoint/
+checkpoint_nsml/
 summary/
+encode/*.pth
