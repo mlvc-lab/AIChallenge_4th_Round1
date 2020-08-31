@@ -13,7 +13,7 @@ from tqdm import tqdm
 from augmentation import RandAugment
 
 valid_datasets = [
-    'cifar10', 'cifar100', 'imagenet', "thingsv3all", 'thingsv3', 'thingsv4', 'imagenet_100'
+    'cifar10', 'cifar100', 'imagenet', 'things', 'imagenet_100'
 ]
 
 
@@ -28,7 +28,7 @@ def _verify_dataset(dataset):
     return dataset
 
 
-def cifar10_loader(batch_size, num_workers, datapath, image_size=32, cuda=False):
+def cifar10_loader(batch_size, num_workers, datapath='../data', image_size=32, cuda=False):
     normalize = transforms.Normalize(
         mean=[0.4914, 0.4822, 0.4465],
         std=[0.2023, 0.1994, 0.2010])
@@ -72,7 +72,7 @@ def cifar10_loader(batch_size, num_workers, datapath, image_size=32, cuda=False)
     return train_loader, val_loader
 
 
-def cifar100_loader(batch_size, num_workers, datapath, image_size=32, cuda=False):
+def cifar100_loader(batch_size, num_workers, datapath='../data', image_size=32, cuda=False):
     normalize = transforms.Normalize(
         mean=[0.4914, 0.4822, 0.4465],
         std=[0.2023, 0.1994, 0.2010])
@@ -116,7 +116,7 @@ def cifar100_loader(batch_size, num_workers, datapath, image_size=32, cuda=False
     return train_loader, val_loader
 
 
-def imagenet_loader(batch_size, num_workers, datapath, image_size=224, cuda=False):
+def imagenet_loader(batch_size, num_workers, datapath="/dataset/ImageNet", image_size=224, cuda=False):
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
     transform_train = transforms.Compose([
@@ -161,13 +161,12 @@ def imagenet_loader(batch_size, num_workers, datapath, image_size=224, cuda=Fals
     return train_loader, val_loader
 
 
-def imagenet_100_loader(batch_size, image_size, num_workers, datapath='/dataset/ImageNet_100', cuda=True):
+def imagenet_100_loader(batch_size, num_workers, datapath='/dataset/ImageNet_100', image_size=224, cuda=True):
     normalize = transforms.Normalize(mean=[0.4851, 0.4464, 0.3926],
                                      std=[0.1394, 0.1378, 0.1355])
                                         
     transform_train = transforms.Compose([
-        transforms.RandomResizedCrop(image_size + 32),
-        transforms.CenterCrop(image_size),
+        transforms.RandomResizedCrop(image_size),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         normalize,
@@ -203,7 +202,9 @@ def imagenet_100_loader(batch_size, image_size, num_workers, datapath='/dataset/
 
     return train_loader, val_loader
 
-def things_loader(batch_size, num_workers, datapath, image_size=224, cuda=False):
+
+def things_loader(batch_size, num_workers, datapath="/dataset/things_v4", image_size=224, cuda=False):
+
     if datapath in ["/dataset/things_v3_1", "/dataset/things_v3"]:
         normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
                                         std=[0.2087, 0.1992, 0.1988])
@@ -257,31 +258,25 @@ def things_loader(batch_size, num_workers, datapath, image_size=224, cuda=False)
     return train_loader, val_loader
 
 
-
-def DataLoader(batch_size, dataset='cifar10', num_workers=4, image_size=224, cuda=True):
+def DataLoader(batch_size, num_workers=4, dataset='cifar10', datapath='../data', image_size=224, cuda=True, **kwargs):
     """Dataloader for training/validation
     """
     DataSet = _verify_dataset(dataset)
     if DataSet == 'cifar10':
         logging.Warning('`image_size` is not using for CIFAR dataset')
-        return cifar10_loader(batch_size, image_size, num_workers, "/dataset/CIFAR/cifar-10-batches-py", cuda)
+        return cifar10_loader(batch_size, num_workers, datapath, image_size, cuda)
     elif DataSet == 'cifar100':
         logging.Warning('`image_size` is not using for CIFAR dataset')
-        return cifar100_loader(batch_size, image_size, num_workers , "/dataset/CIFAR/cifar-100-python", cuda)
+        return cifar100_loader(batch_size, num_workers, datapath, image_size, cuda)
     elif DataSet == 'imagenet':
-        return imagenet_loader(batch_size, image_size, num_workers,"/dataset/ImageNet", cuda)
-    elif DataSet == 'thingsv3':
-        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v3", cuda)
-    elif DataSet == 'thingsv3all':
-        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v3_1", cuda)
-    elif DataSet == 'thingsv4':
-        return things_loader(batch_size, image_size, num_workers, "/dataset/things_v4", cuda)
+        return imagenet_loader(batch_size, num_workers, datapath, image_size, cuda)
+    elif DataSet == 'things':
+        return things_loader(batch_size, num_workers, datapath, image_size, cuda)
     elif DataSet == 'imagenet_100':
-        return imagenet_100_loader(batch_size, image_size, num_workers, "/dataset/ImageNet_100", cuda)
+        return imagenet_100_loader(batch_size, num_workers, datapath, image_size, cuda)
 ### _dataloader_
 
 
-### things data utils
 def rm_tree(pth):
     pth = Path(pth)
     for child in pth.glob('*'):
@@ -405,8 +400,5 @@ def get_params(dataloader):
 ### datset statistics
 
 
-if __name__ == '__main__':
-    pass
-    # t_loader, v_loader = DataLoader(64, 224, 4, "imagenet_100")
-    # print(len(t_loader.dataset.classes))
-    # mean, std = get_params(t_loader)
+if __name__ == "__main__":
+    things_unzip_and_convert('/media/kairos/KM_SDRnHDR/AI-Challenge_dataset', '/home/kairos/Downloads/target')
