@@ -204,6 +204,7 @@ def imagenet_100_loader(batch_size, num_workers, datapath='/dataset/ImageNet_100
 
 
 def things_loader(batch_size, num_workers, datapath="/dataset/things_v4", image_size=224, cuda=False):
+
     if datapath in ["/dataset/things_v3_1", "/dataset/things_v3"]:
         normalize = transforms.Normalize(mean=[0.5919, 0.5151, 0.4966],
                                         std=[0.2087, 0.1992, 0.1988])
@@ -374,8 +375,10 @@ def data_split(source, target, ratio=0.7):
                 shutil.copy(str(instance), str(train_path/classname.name/instance.name))
             else:
                 shutil.copy(str(instance), str(val_path/classname.name/instance.name))
+### _things_data_utils
 
 
+### datset statistics
 def get_params(dataloader):
     mean = 0.
     std = 0.
@@ -394,6 +397,7 @@ def get_params(dataloader):
     print(f"mean : {mean} , std : {std}")
 
     return mean, std
+### datset statistics
 
 
 if __name__ == "__main__":
