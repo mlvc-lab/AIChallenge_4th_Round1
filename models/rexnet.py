@@ -161,6 +161,9 @@ def rexnet(data='cifar10', **kwargs):
     elif data == 'imagenet':
         model = RexNetV1(width_mult=width_mult, depth_mult=depth_mult, classes=1000)
         image_size = 224
+    elif data == 'imagenet_100':
+        model = RexNetV1(width_mult=width_mult, depth_mult=depth_mult, classes=100)
+        image_size = 224
     elif data == 'things':
         model = RexNetV1(width_mult=width_mult, depth_mult=depth_mult, classes=41)
         image_size = 224

@@ -9,3 +9,5 @@ checkpoint/
 checkpoint_nsml/
 summary/
 encode/*.pth
+
+run*.sh
